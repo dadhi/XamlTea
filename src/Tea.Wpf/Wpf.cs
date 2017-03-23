@@ -88,7 +88,7 @@ namespace Tea.Wpf
             if (path.IsEmpty)
                 return root.Content as Panel;
             var panel = LocatePanel(path.Tail, root);
-            return panel.Children[path.Head] as Panel;
+            return (Panel)panel.Children[path.Head];
         }
 
         private static unit Update(UIUpdate update, ContentControl root)

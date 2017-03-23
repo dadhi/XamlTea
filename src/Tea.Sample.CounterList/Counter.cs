@@ -24,16 +24,10 @@ namespace Tea.Sample.CounterList
 
         public static UI<Msg> View(Model model)
         {
-            return
-                div(Layout.Horizontal
-                    , button("+", Msg.Increment)
-                    , button("-", Msg.Decrement)
-                    , text<Msg>($"{model.Count}")); // todo: don't like Msg here
-        }
-
-        public static App<Msg, Model> App(int i)
-        {
-            return UIApp.App(new Model(i), Update, View);
+            return div(Layout.Horizontal
+                , button("+", Msg.Increment)
+                , button("-", Msg.Decrement)
+                , text<Msg>($"{model.Count}")); // todo: don't like Msg here
         }
     }
 }

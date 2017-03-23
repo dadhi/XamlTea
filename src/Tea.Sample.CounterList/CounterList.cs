@@ -13,10 +13,9 @@ namespace Tea.Sample.CounterList
             public sealed class Remove : Msg { public static readonly Msg It = new Remove(); }
             public sealed class Modify : Msg
             {
-                public readonly int Index;
-                public readonly Counter.Msg CounterMsg;
-                public Modify(int index, Counter.Msg msg) { Index = index; CounterMsg = msg; }
-                public static Msg It(int index, Counter.Msg msg) { return new Modify(index, msg); }
+                public int Index { get; private set; }
+                public Counter.Msg CounterMsg { get; private set; }
+                public static Msg It(int index, Counter.Msg msg) { return new Modify { Index = index, CounterMsg = msg }; }
             }
         }
 
@@ -40,7 +39,7 @@ namespace Tea.Sample.CounterList
             var modify = msg as Msg.Modify;
             if (modify != null)
             {
-                var counterWithUpdatedOne = model.Counters.To(0, ImList<Counter.Model>.Empty, 
+                var counterWithUpdatedOne = model.Counters.To(ImList<Counter.Model>.Empty, 
                     (counter, i, _) => _.Push(i != modify.Index ? counter
                         : Counter.Update(modify.CounterMsg, counter)));
                 return new Model(counterWithUpdatedOne);
@@ -54,7 +53,7 @@ namespace Tea.Sample.CounterList
             return div(Layout.Vertical, new[]
                 { button("Add", Msg.Insert.It)
                 , button("Remove", Msg.Remove.It)
-                }.Append(model.Counters.To(0, ImList<UI<Msg>>.Empty, (c, i, _) => _.Push(
+                }.Append(model.Counters.To(ImList<UI<Msg>>.Empty, (c, i, _) => _.Push(
                     Counter.View(c).Map(m => Msg.Modify.It(i, m)))).Enumerate().ToArray()));
         }
 

@@ -150,7 +150,6 @@ namespace Tea
     }
 
     /// UI component including a message event.
-    //type 'msg UI = {UI:UI;mutable Event:'msg->unit}
     public class UI<TMsg> 
     {
         public readonly UI InternalUI;
@@ -178,7 +177,6 @@ namespace Tea
         }
     }
 
-    /// Native UI interface.
     public interface INativeUI
     {
         void Send(ImList<UIUpdate> uiUpdates);
@@ -219,7 +217,6 @@ namespace Tea
             var ui = new UI<TMsg>(new UI.Div(layout, uiParts), unit.Ignore);
 
             Func<TMsg, unit> raise = msg => ui.Event(msg);
-
             for (var i = 0; i < parts.Length; i++)
                 parts[i].Event = raise;
 
@@ -230,9 +227,9 @@ namespace Tea
     public static class UIApp
     {
         /// Returns a new UI component mapping the message event using the given function.
-        public static UI<TOutMsg> Map<TInMsg, TOutMsg>(this UI<TInMsg> source, Func<TInMsg, TOutMsg> map)
+        public static UI<TMsg> Map<TSubMsg, TMsg>(this UI<TSubMsg> source, Func<TSubMsg, TMsg> map)
         {
-            var result = new UI<TOutMsg>(source.InternalUI, unit.Ignore);
+            var result = new UI<TMsg>(source.InternalUI, unit.Ignore);
             source.Event = msg => result.Event(map(msg));
             return result;
         }
@@ -292,11 +289,11 @@ namespace Tea
 
                 // for each new child UI do insert
                 if (oldChildren.IsEmpty)
-                    return newChildren.To(index, diffs, (ui, i, _) => _.Push(new UIUpdate.Insert(path.Push(i), ui)));
+                    return newChildren.To(diffs, (ui, i, _) => _.Push(new UIUpdate.Insert(path.Push(index + i), ui)));
 
                 // remove old ui children
                 if (newChildren.IsEmpty)
-                    return oldChildren.To(index, diffs, (ui, i, _) => _.Push(new UIUpdate.Remove(path.Push(i))));
+                    return oldChildren.To(diffs, (ui, i, _) => _.Push(new UIUpdate.Remove(path.Push(index + i))));
 
                 // diff the first items, then recursively the rest 
                 diffs = Diff(oldChildren.Head, newChildren.Head, path.Push(index), 0, diffs);
