@@ -58,11 +58,11 @@ namespace Tea.Wpf
             var div = ui as UI.Div;
             if (div != null)
             {
-                var elemParts = div.Parts.To(ImList<UIElement>.Empty, (p, _) => _.Push(CreateUI(p)));
+                var elems = div.Parts.Map(CreateUI);
                 var orientation = div.Layout == Layout.Vertical ? Orientation.Vertical : Orientation.Horizontal;
-                var elem = new StackPanel { Orientation = orientation };
-                elemParts.To(0, (p, _) => elem.Children.Add(p));
-                return elem;
+                var panel = new StackPanel { Orientation = orientation };
+                elems.To(0, (p, _) => panel.Children.Add(p));
+                return panel;
             }
 
             throw new NotSupportedException("The type of UI is not supported: " + ui.GetType());

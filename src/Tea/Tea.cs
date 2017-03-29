@@ -212,7 +212,7 @@ namespace Tea
 
             // add in reverse order to preserve the parts order
             for (var i = parts.Length - 1; i >= 0; i--)
-                uiParts = uiParts.Push(parts[i].InternalUI);
+                uiParts = uiParts.Prep(parts[i].InternalUI);
 
             var ui = new UI<TMsg>(new UI.Div(layout, uiParts), unit.Ignore);
 
@@ -227,7 +227,7 @@ namespace Tea
     public static class UIApp
     {
         /// Returns a new UI component mapping the message event using the given function.
-        public static UI<TMsg> Map<TSubMsg, TMsg>(this UI<TSubMsg> source, Func<TSubMsg, TMsg> map)
+        public static UI<TMsg> MapMsg<TSubMsg, TMsg>(this UI<TSubMsg> source, Func<TSubMsg, TMsg> map)
         {
             var result = new UI<TMsg>(source.InternalUI, unit.Ignore);
             source.Event = msg => result.Event(map(msg));
@@ -249,26 +249,26 @@ namespace Tea
             if (oldUI is UI.Text && newUI is UI.Text)
             {
                 if (oldUI.Value != newUI.Value)
-                    diffs = diffs.Push(new UIUpdate.Update(path, newUI));
+                    diffs = diffs.Prep(new UIUpdate.Update(path, newUI));
                 return diffs;
             }
 
             if (oldUI is UI.Button && newUI is UI.Button)
             {
                 if (oldUI.Value != newUI.Value)
-                    diffs = diffs.Push(new UIUpdate.Update(path, newUI));
+                    diffs = diffs.Prep(new UIUpdate.Update(path, newUI));
 
-                var updateEvent = Update(((UI.Button)oldUI).Event, ((UI.Button)newUI).Event);
-                return diffs.Push(new UIUpdate.Event(updateEvent));
+                var updateEvent = UpdateEvent(((UI.Button)oldUI).Event, ((UI.Button)newUI).Event);
+                return diffs.Prep(new UIUpdate.Event(updateEvent));
             }
 
             if (oldUI is UI.Input && newUI is UI.Input)
             {
                 if (oldUI.Value != newUI.Value)
-                    diffs = diffs.Push(new UIUpdate.Update(path, newUI));
+                    diffs = diffs.Prep(new UIUpdate.Update(path, newUI));
 
-                var updateEvent = Update(((UI.Input)oldUI).Event, ((UI.Input)newUI).Event);
-                return diffs.Push(new UIUpdate.Event(updateEvent));
+                var updateEvent = UpdateEvent(((UI.Input)oldUI).Event, ((UI.Input)newUI).Event);
+                return diffs.Prep(new UIUpdate.Event(updateEvent));
             }
 
             var oldDiv = oldUI as UI.Div;
@@ -278,38 +278,41 @@ namespace Tea
             {
                 // if layout changed then fully replace
                 if (oldDiv.Layout != newDiv.Layout)
-                    return diffs.Push(new UIUpdate.Replace(path, newUI));
+                    return diffs.Prep(new UIUpdate.Replace(path, newDiv));
 
-                var oldChildren = oldDiv.Parts;
-                var newChildren = newDiv.Parts;
+                var oldParts = oldDiv.Parts;
+                var newParts = newDiv.Parts;
 
                 // if both empty
-                if (oldChildren.IsEmpty && newChildren.IsEmpty)
+                if (oldParts.IsEmpty && newParts.IsEmpty)
                     return diffs;
 
                 // for each new child UI do insert
-                if (oldChildren.IsEmpty)
-                    return newChildren.To(diffs, (ui, i, _) => _.Push(new UIUpdate.Insert(path.Push(index + i), ui)));
+                if (oldParts.IsEmpty)
+                    return newParts.To(diffs, 
+                        (ui, i, _) => _.Prep(new UIUpdate.Insert(path.Prep(index + i), ui)))
+                        .Reverse();
 
                 // remove old ui children
-                if (newChildren.IsEmpty)
-                    return oldChildren.To(diffs, (ui, i, _) => _.Push(new UIUpdate.Remove(path.Push(index + i))));
+                if (newParts.IsEmpty)
+                    return oldParts.To(diffs, 
+                        (ui, i, _) => _.Prep(new UIUpdate.Remove(path.Prep(index + i))));
 
                 // diff the first items, then recursively the rest 
-                diffs = Diff(oldChildren.Head, newChildren.Head, path.Push(index), 0, diffs);
+                diffs = Diff(oldParts.Head, newParts.Head, path.Prep(index), 0, diffs);
 
                 return Diff(
-                    new UI.Div(oldDiv.Layout, oldChildren.Tail),
-                    new UI.Div(oldDiv.Layout, newChildren.Tail),
+                    new UI.Div(oldDiv.Layout, oldParts.Tail),
+                    new UI.Div(oldDiv.Layout, newParts.Tail),
                     path, index + 1, diffs);
             }
 
             // otherwise just replace
-            return diffs.Push(new UIUpdate.Replace(path, newUI));
+            return diffs.Prep(new UIUpdate.Replace(path, newUI));
         }
 
         // Point first ref to second ref value.value
-        private static Func<unit, unit> Update<T>(Ref<Ref<T>> ref1, Ref<Ref<T>> ref2)
+        private static Func<unit, unit> UpdateEvent<T>(Ref<Ref<T>> ref1, Ref<Ref<T>> ref2)
             where T : class
         {
             return _ =>
@@ -353,7 +356,7 @@ namespace Tea
             // Render and insert intial UI from the model
             var initialUI = app.View(app.Model);
             initialUI.Event = msg => handleRecursively(app.Model, initialUI, msg);
-            nativeUI.Send(ImList<UIUpdate>.Empty.Push(new UIUpdate.Insert(ImList<int>.Empty, initialUI.InternalUI)));
+            nativeUI.Send(ImList<UIUpdate>.Empty.Prep(new UIUpdate.Insert(ImList<int>.Empty, initialUI.InternalUI)));
         }
     }
 }

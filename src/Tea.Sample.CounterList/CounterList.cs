@@ -28,7 +28,7 @@ namespace Tea.Sample.CounterList
         public static Model Update(Msg msg, Model model)
         {
             if (msg is Msg.Insert)
-                return new Model(model.Counters.Push(new Counter.Model(0)));
+                return new Model(model.Counters.Prep(new Counter.Model(0)));
 
             if (model.Counters.IsEmpty)
                 return model;
@@ -38,23 +38,22 @@ namespace Tea.Sample.CounterList
 
             var modify = msg as Msg.Modify;
             if (modify != null)
-            {
-                var counterWithUpdatedOne = model.Counters.To(ImList<Counter.Model>.Empty, 
-                    (counter, i, _) => _.Push(i != modify.Index ? counter
-                        : Counter.Update(modify.CounterMsg, counter)));
-                return new Model(counterWithUpdatedOne);
-            }
+                return new Model(model.Counters.Map((c, i) =>
+                    i != modify.Index ? c : Counter.Update(modify.CounterMsg, c)));
 
             return model;
         }
 
         public static UI<Msg> View(Model model)
         {
+            var counterViews = model.Counters
+                .Map((c, i) => Counter.View(c).MapMsg(msg => Msg.Modify.It(i, msg)))
+                .Enumerate().ToArray();
+
             return div(Layout.Vertical, new[]
                 { button("Add", Msg.Insert.It)
                 , button("Remove", Msg.Remove.It)
-                }.Append(model.Counters.To(ImList<UI<Msg>>.Empty, (c, i, _) => _.Push(
-                    Counter.View(c).Map(m => Msg.Modify.It(i, m)))).Enumerate().ToArray()));
+                }.Append(counterViews));
         }
 
         public static App<Msg, Model> App()
