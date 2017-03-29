@@ -47,8 +47,7 @@ namespace Tea.Sample.CounterList
         public static UI<Msg> View(Model model)
         {
             var counterViews = model.Counters
-                .Map((c, i) => Counter.View(c).MapMsg(msg => Msg.Modify.It(i, msg)))
-                .Enumerate().ToArray();
+                .Map((c, i) => Counter.View(c).MapMsg(msg => Msg.Modify.It(i, msg)));
 
             return div(Layout.Vertical, new[]
                 { button("Add", Msg.Insert.It)
