@@ -79,7 +79,6 @@ namespace Tea.Wpf
             else if (ui is UI.Button)
                 ((Button)elem).Content = ui.Value;
 
-            // Skips Div
             return unit._;
         }
 

@@ -1,5 +1,4 @@
-﻿using System.Linq;
-using ImTools;
+﻿using ImTools;
 
 namespace Tea.Sample.CounterList
 {
