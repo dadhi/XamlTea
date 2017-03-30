@@ -41,8 +41,8 @@ namespace Tea.Wpf
             if (input != null)
             {
                 var elem = new TextBox { Text = input.Value };
-                var evnt = input.Event.Value;
-                elem.TextChanged += (sender, _) => evnt.Value(elem.Text);
+                var ev = input.Event.Value;
+                elem.TextChanged += (sender, _) => ev.Value(((TextBox)sender).Text);
                 return elem;
             }
 
@@ -50,19 +50,29 @@ namespace Tea.Wpf
             if (button != null)
             {
                 var elem = new Button { Content = button.Value };
-                var evnt = button.Event.Value;
-                elem.Click += (sender, _) => evnt.Value(unit._);
+                var ev = button.Event.Value;
+                elem.Click += (sender, _) => ev.Value(unit._);
                 return elem;
             }
 
             var div = ui as UI.Div;
             if (div != null)
             {
-                var elems = div.Parts.Map(CreateUI);
+                var parts = div.Parts.Map(CreateUI);
                 var orientation = div.Layout == Layout.Vertical ? Orientation.Vertical : Orientation.Horizontal;
-                var panel = new StackPanel { Orientation = orientation };
-                elems.To(0, (p, _) => panel.Children.Add(p));
-                return panel;
+                var elem = new StackPanel { Orientation = orientation };
+                parts.To(0, (p, _) => elem.Children.Add(p));
+                return elem;
+            }
+
+            var check = ui as UI.CheckBox;
+            if (check != null)
+            {
+                var elem = new CheckBox { Content = check.Value, IsChecked = check.IsChecked };
+                var ev = check.Event.Value;
+                elem.Checked += (sender, _) => ev.Value(true);
+                elem.Unchecked += (sender, _) => ev.Value(false);
+                return elem;
             }
 
             throw new NotSupportedException("The type of UI is not supported: " + ui.GetType());

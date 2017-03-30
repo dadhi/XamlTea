@@ -24,7 +24,7 @@ namespace Tea.Sample.CounterList
             }
         }
 
-        public static Model Update(Msg msg, Model model)
+        public static Model Update(Model model, Msg msg)
         {
             if (msg is Msg.Insert)
                 return new Model(model.Counters.Prep(new Counter.Model(0)));
@@ -38,7 +38,7 @@ namespace Tea.Sample.CounterList
             var modify = msg as Msg.Modify;
             if (modify != null)
                 return new Model(model.Counters.Map((c, i) =>
-                    i != modify.Index ? c : Counter.Update(modify.CounterMsg, c)));
+                    i != modify.Index ? c : c.Update(modify.CounterMsg)));
 
             return model;
         }

@@ -12,7 +12,7 @@ namespace Tea.Sample.CounterList
 
         public enum Msg { Increment, Decrement }
 
-        public static Model Update(Msg msg, Model model)
+        public static Model Update(this Model model, Msg msg)
         {
             switch (msg)
             {

@@ -42,35 +42,43 @@ namespace Tea
             return Value;
         }
 
-        //| Text of string
         public class Text : UI
         {
             public Text(string value) : base(value) { }
         }
 
-        //| Input of string* string Event
         public class Input : UI
         {
             public readonly Ref<Ref<Func<string, unit>>> Event;
 
-            public Input(string value, Ref<Ref<Func<string, unit>>> evt) : base(value)
+            public Input(string value, Ref<Ref<Func<string, unit>>> ev) : base(value)
             {
-                Event = evt;
+                Event = ev;
             }
         }
 
-        //| Button of string* unit Event
         public class Button : UI
         {
             public readonly Ref<Ref<Func<unit, unit>>> Event;
 
-            public Button(string value, Ref<Ref<Func<unit, unit>>> evt) : base(value)
+            public Button(string text, Ref<Ref<Func<unit, unit>>> ev) : base(text)
             {
-                Event = evt;
+                Event = ev;
             }
         }
 
-        //| Div of Layout* UI list
+        public class CheckBox : UI
+        {
+            public readonly bool IsChecked;
+            public readonly Ref<Ref<Func<bool, unit>>> Event;
+
+            public CheckBox(string text, bool isChecked, Ref<Ref<Func<bool, unit>>> ev) : base(text)
+            {
+                IsChecked = isChecked;
+                Event = ev;
+            }
+        }
+
         public class Div : UI
         {
             public readonly Layout Layout;
@@ -166,10 +174,10 @@ namespace Tea
     public class App<TMsg, TModel>
     {
         public readonly TModel Model;
-        public readonly Func<TMsg, TModel, TModel> Update;
+        public readonly Func<TModel, TMsg, TModel> Update;
         public readonly Func<TModel, UI<TMsg>> View;
 
-        public App(TModel model, Func<TMsg, TModel, TModel> update, Func<TModel, UI<TMsg>> view)
+        public App(TModel model, Func<TModel, TMsg, TModel> update, Func<TModel, UI<TMsg>> view)
         {
             Model = model;
             Update = update;
@@ -202,6 +210,14 @@ namespace Tea
             var ev = Event.Of<unit>(unit.Ignore);
             var ui = new UI<TMsg>(new UI.Button(text, ev), unit.Ignore);
             ev.Value.Swap(_ => ui.Event(msg));
+            return ui;
+        }
+
+        public static UI<TMsg> checkbox<TMsg>(string text, bool isChecked, Func<bool, TMsg> msg)
+        {
+            var ev = Event.Of<bool>(unit.Ignore);
+            var ui = new UI<TMsg>(new UI.CheckBox(text, isChecked, ev), unit.Ignore);
+            ev.Value.Swap(b => ui.Event(msg(b)));
             return ui;
         }
 
@@ -245,7 +261,7 @@ namespace Tea
             if (ReferenceEquals(oldUI, newUI))
                 return diffs;
 
-            // todo: consolidate same ui handling because it is not different
+            // todo: consolidate same ui handling because it is not so different
             if (oldUI is UI.Text && newUI is UI.Text)
             {
                 if (oldUI.Value != newUI.Value)
@@ -328,7 +344,7 @@ namespace Tea
         // Returns a UI application from a UI model, update and view.
         public static App<TMsg, TModel> App<TMsg, TModel>(
             TModel model, 
-            Func<TMsg, TModel, TModel> update,
+            Func<TModel, TMsg, TModel> update,
             Func<TModel, UI<TMsg>> view)
         {
             return new App<TMsg, TModel>(model, update, view);
@@ -340,7 +356,7 @@ namespace Tea
             Func<TModel, UI<TMsg>, TMsg, unit> handleRecursively = null;
             handleRecursively = (model, view, message) =>
             {
-                var newModel = app.Update(message, model);
+                var newModel = app.Update(model, message);
                 var newUI = app.View(newModel);
 
                 newUI.Event = msg => handleRecursively(newModel, newUI, msg);
