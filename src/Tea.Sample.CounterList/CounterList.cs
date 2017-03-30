@@ -6,6 +6,12 @@ namespace Tea.Sample.CounterList
 
     public static class CounterList
     {
+        public sealed class Model
+        {
+            public readonly ImList<Counter.Model> Counters;
+            public Model(ImList<Counter.Model> counters) { Counters = counters; }
+        }
+
         public abstract class Msg
         {
             public sealed class Insert : Msg { public static readonly Msg It = new Insert(); }
@@ -16,12 +22,6 @@ namespace Tea.Sample.CounterList
                 public Counter.Msg CounterMsg { get; private set; }
                 public static Msg It(int index, Counter.Msg msg) { return new Modify { Index = index, CounterMsg = msg }; }
             }
-        }
-
-        public sealed class Model
-        {
-            public readonly ImList<Counter.Model> Counters;
-            public Model(ImList<Counter.Model> counters) { Counters = counters; }
         }
 
         public static Model Update(Msg msg, Model model)
@@ -46,7 +46,8 @@ namespace Tea.Sample.CounterList
         public static UI<Msg> View(Model model)
         {
             var counterViews = model.Counters
-                .Map((c, i) => Counter.View(c).MapMsg(msg => Msg.Modify.It(i, msg)));
+                .Map((c, i) => Counter.View(c).MapMsg(msg => Msg.Modify.It(i, msg)))
+                .ToArray();
 
             return div(Layout.Vertical, new[]
                 { button("Add", Msg.Insert.It)

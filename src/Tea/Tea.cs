@@ -189,12 +189,11 @@ namespace Tea
             return new UI<TMsg>(new UI.Text(text), unit.Ignore);
         }
 
-        public static UI<string> input(string text)
+        public static UI<TMsg> input<TMsg>(string text, Func<string, TMsg> msg)
         {
             var ev = Event.Of<string>(unit.Ignore);
-            var ui = new UI<string>(new UI.Input(text, ev), unit.Ignore);
-            Func<string, unit> raise = s => ui.Event(s);
-            ev.Value.Swap(raise);
+            var ui = new UI<TMsg>(new UI.Input(text, ev), unit.Ignore);
+            ev.Value.Swap(s => ui.Event(msg(s)));
             return ui;
         }
 
@@ -226,6 +225,7 @@ namespace Tea
 
     public static class UIApp
     {
+        // todo: May be combined with the view to don't write it each time
         /// Returns a new UI component mapping the message event using the given function.
         public static UI<TMsg> MapMsg<TSubMsg, TMsg>(this UI<TSubMsg> source, Func<TSubMsg, TMsg> map)
         {

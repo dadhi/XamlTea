@@ -4,13 +4,13 @@ namespace Tea.Sample.CounterList
 
     public static class Counter
     {
-        public enum Msg { Increment, Decrement }
-
         public sealed class Model
         {
             public readonly int Count;
             public Model(int count) { Count = count; }
         }
+
+        public enum Msg { Increment, Decrement }
 
         public static Model Update(Msg msg, Model model)
         {
