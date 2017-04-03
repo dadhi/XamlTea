@@ -21,17 +21,21 @@ namespace Tea.Sample.ToDo
 
         public abstract class Msg
         {
-            public class AddNewItem : Msg
+            public class EditNewItem : Msg
             {
                 public string Text { get; private set; }
-                public static Msg It(string text) { return new AddNewItem { Text = text }; }
+                public static Msg It(string text) { return new EditNewItem { Text = text }; }
+            }
+
+            public class AddNewItem : Msg
+            {
+                public static readonly Msg It = new AddNewItem();
             }
 
             public class ItemChanged : Msg
             {
                 public int ItemIndex { get; private set; }
                 public ToDoItem.Msg ItemMsg { get; private set; }
-
                 public static Func<ToDoItem.Msg, Msg> It(int index)
                 {
                     return msg => new ItemChanged { ItemIndex = index, ItemMsg = msg };
@@ -41,14 +45,19 @@ namespace Tea.Sample.ToDo
 
         public static Model Update(this Model model, Msg msg)
         {
+            var editNewItem = msg as Msg.EditNewItem;
+            if (editNewItem != null)
+                return new Model(model.Items, editNewItem.Text);
+
             var addNewItem = msg as Msg.AddNewItem;
-            if (addNewItem != null)
-                return new Model(model.Items, addNewItem.Text);
+            if (addNewItem != null) // adds new item to list and reset new item text
+                return string.IsNullOrWhiteSpace(model.NewItem) ? model
+                    : new Model(model.Items.Prep(new ToDoItem.Model(model.NewItem)), string.Empty);
 
             var itemChanged = msg as Msg.ItemChanged;
             if (itemChanged != null)
                 return new Model(
-                    model.Items.Map((it, i) => i == itemChanged.ItemIndex ? it.Update(itemChanged.ItemMsg) : it),
+                    model.Items.With(itemChanged.ItemIndex, it => it.Update(itemChanged.ItemMsg)),
                     model.NewItem);
 
             return model;
@@ -58,15 +67,16 @@ namespace Tea.Sample.ToDo
         {
             return div(Layout.Vertical, 
                 model.Items.Map((it, i) => it.View().MapMsg(Msg.ItemChanged.It(i))).ToArray().Append(
-                input(model.NewItem, Msg.AddNewItem.It),
-                text<Msg>(model.NewItem)
-                ));
+                div(Layout.Horizontal,
+                    button("Add", Msg.AddNewItem.It),
+                    input(model.NewItem, Msg.EditNewItem.It)
+                )));
         }
 
         public static Model Init()
         {
             return new Model(ImList<ToDoItem.Model>.Empty
-                .Prep(new ToDoItem.Model("foo", false))
+                .Prep(new ToDoItem.Model("foo"))
                 .Prep(new ToDoItem.Model("bar", true)),
                 string.Empty);
         }
@@ -84,7 +94,7 @@ namespace Tea.Sample.ToDo
             public readonly string Text;
             public readonly bool IsDone;
 
-            public Model(string text, bool isDone)
+            public Model(string text, bool isDone = false)
             {
                 Text = text;
                 IsDone = isDone;

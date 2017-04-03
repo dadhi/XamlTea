@@ -26,6 +26,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tea.Sample.ToDo", "Tea.Samp
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Team.Sample.ToDo.Wpf", "Team.Sample.ToDo.Wpf\Team.Sample.ToDo.Wpf.csproj", "{21BF8F39-CD7A-4BF3-AE6F-97F6CC2699E3}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tea.UnitTests", "Tea.UnitTests\Tea.UnitTests.csproj", "{39580DD8-E989-465B-AD03-235810D9E3CA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -64,6 +66,10 @@ Global
 		{21BF8F39-CD7A-4BF3-AE6F-97F6CC2699E3}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{21BF8F39-CD7A-4BF3-AE6F-97F6CC2699E3}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{21BF8F39-CD7A-4BF3-AE6F-97F6CC2699E3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{39580DD8-E989-465B-AD03-235810D9E3CA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{39580DD8-E989-465B-AD03-235810D9E3CA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{39580DD8-E989-465B-AD03-235810D9E3CA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{39580DD8-E989-465B-AD03-235810D9E3CA}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

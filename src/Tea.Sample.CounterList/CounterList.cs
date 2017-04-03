@@ -37,8 +37,7 @@ namespace Tea.Sample.CounterList
 
             var modify = msg as Msg.Modify;
             if (modify != null)
-                return new Model(model.Counters.Map((c, i) =>
-                    i != modify.Index ? c : c.Update(modify.CounterMsg)));
+                return new Model(model.Counters.With(modify.Index, c => c.Update(modify.CounterMsg)));
 
             return model;
         }
