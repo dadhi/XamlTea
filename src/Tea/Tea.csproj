@@ -34,10 +34,8 @@
     <Reference Include="System.Core" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="..\..\..\ImTools\src\ImTools\ImTools.cs">
-      <Link>ImTools\ImTools.cs</Link>
-    </Compile>
     <Compile Include="ImToolsExt.cs" />
+    <Compile Include="ImTools\ImTools.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Tea.cs" />
   </ItemGroup>
