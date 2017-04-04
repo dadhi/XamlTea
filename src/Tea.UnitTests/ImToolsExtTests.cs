@@ -28,13 +28,27 @@ namespace Tea.UnitTests
                 .Prep(10)
                 .Prep(15);
 
-            var newList = list.With(1, i => i + 1);
+            list = list.With(1, i => i + 1);
+            CollectionAssert.AreEqual(new[] { 15, 11, 5, 1 }, list.Enumerate());
 
-            CollectionAssert.AreEqual(new[] { 15, 11, 5, 1 }, newList.Enumerate());
+            list = list.With(0, i => i + 1);
+            CollectionAssert.AreEqual(new[] { 16, 11, 5, 1 }, list.Enumerate());
+
+            list = list.With(3, i => i + 1);
+            CollectionAssert.AreEqual(new[] { 16, 11, 5, 2 }, list.Enumerate());
+
+            list = list.With(-5, i => i + 1);
+            CollectionAssert.AreEqual(new[] { 16, 11, 5, 2 }, list.Enumerate());
+
+            list = list.With(5, i => i + 1);
+            CollectionAssert.AreEqual(new[] { 16, 11, 5, 2 }, list.Enumerate());
+
+            var newList = list.With(1, i => i);
+            Assert.AreSame(list, newList);
         }
 
         [Test]
-        public void Can_efficiently_map_at_index_0()
+        public void Can_remove_item_with_index()
         {
             var list = ImList<int>.Empty
                 .Prep(1)
@@ -42,23 +56,27 @@ namespace Tea.UnitTests
                 .Prep(10)
                 .Prep(15);
 
-            var newList = list.With(0, i => i + 1);
+            list = list.Without(2);
+            CollectionAssert.AreEqual(new[] { 15, 10, 1 }, list.Enumerate());
 
-            CollectionAssert.AreEqual(new[] { 16, 10, 5, 1 }, newList.Enumerate());
-        }
+            list = list.Without(2);
+            CollectionAssert.AreEqual(new[] { 15, 10 }, list.Enumerate());
 
-        [Test]
-        public void Can_efficiently_map_at_last_index()
-        {
-            var list = ImList<int>.Empty
-                .Prep(1)
-                .Prep(5)
-                .Prep(10)
-                .Prep(15);
+            list = list.Without(0);
+            CollectionAssert.AreEqual(new[] { 10 }, list.Enumerate());
 
-            var newList = list.With(3, i => i + 1);
+            list = list.Without(5);
+            CollectionAssert.AreEqual(new[] { 10 }, list.Enumerate());
 
-            CollectionAssert.AreEqual(new[] { 15, 10, 5, 2 }, newList.Enumerate());
+            var newList = list.Without(-5);
+            CollectionAssert.AreEqual(new[] { 10 }, list.Enumerate());
+            Assert.AreSame(list, newList);
+
+            list = list.Without(0);
+            CollectionAssert.AreEqual(new int[] {}, list.Enumerate());
+
+            list = list.Without(0);
+            CollectionAssert.AreEqual(new int[] { }, list.Enumerate());
         }
     }
 }

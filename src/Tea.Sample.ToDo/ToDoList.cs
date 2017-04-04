@@ -17,6 +17,11 @@ namespace Tea.Sample.ToDo
                 Items = items;
                 NewItem = newItem;
             }
+
+            public Model With(ImList<ToDoItem.Model> items)
+            {
+                return new Model(items, NewItem);
+            }
         }
 
         public abstract class Msg
@@ -56,9 +61,15 @@ namespace Tea.Sample.ToDo
 
             var itemChanged = msg as Msg.ItemChanged;
             if (itemChanged != null)
-                return new Model(
-                    model.Items.With(itemChanged.ItemIndex, it => it.Update(itemChanged.ItemMsg)),
-                    model.NewItem);
+            {
+                // handles selected child msg on parent level, and does not propagate it to child - child is removed
+                if (itemChanged.ItemMsg is ToDoItem.Msg.Remove)
+                    return model.With(model.Items.Without(itemChanged.ItemIndex));
+
+                // propagate the rest of child mgs to child Update
+                return model.With(model.Items.With(itemChanged.ItemIndex, 
+                    it => it.Update(itemChanged.ItemMsg)));
+            }
 
             return model;
         }
@@ -68,8 +79,8 @@ namespace Tea.Sample.ToDo
             return div(Layout.Vertical, 
                 model.Items.Map((it, i) => it.View().MapMsg(Msg.ItemChanged.It(i))).ToArray().Append(
                 div(Layout.Horizontal,
-                    button("Add", Msg.AddNewItem.It),
-                    input(model.NewItem, Msg.EditNewItem.It)
+                    input(model.NewItem, Msg.EditNewItem.It),
+                    button("Add", Msg.AddNewItem.It)
                 )));
         }
 
@@ -108,6 +119,11 @@ namespace Tea.Sample.ToDo
                 public bool IsDone { get; private set; }
                 public static Msg It(bool isDone) { return new StateChanged { IsDone = isDone }; }
             }
+
+            public class Remove : Msg
+            {
+                public static readonly Msg It = new Remove();
+            }
         }
 
         public static Model Update(this Model model, Msg msg)
@@ -120,7 +136,9 @@ namespace Tea.Sample.ToDo
 
         public static UI<Msg> View(this Model model)
         {
-            return checkbox(model.Text, model.IsDone, Msg.StateChanged.It);
+            return div(Layout.Horizontal,
+                checkbox(model.Text, model.IsDone, Msg.StateChanged.It),
+                button("remove", Msg.Remove.It));
         }
     }
 }

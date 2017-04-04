@@ -30,13 +30,36 @@ namespace Tea
             {
                 if (i == index)
                 {
-                    var updatedValue = update(remaining.Head);
-                    if (ReferenceEquals(updatedValue, remaining.Head))
+                    var value = remaining.Head;
+                    var updatedValue = update(value);
+                    if (ReferenceEquals(updatedValue, value) || Equals(updatedValue, value))
                         return source; // if item did not change, return the source
 
                     remaining = remaining.Tail.Prep(updatedValue);
                     return beginning.To(remaining, (it, _) => _.Prep(it));
                 }
+                beginning = beginning.Prep(remaining.Head);
+            }
+
+            // if index is ouside of the bounds, return original array
+            return source;
+        }
+
+        public static ImList<T> Without<T>(this ImList<T> source, int index)
+        {
+            if (source.IsEmpty || index < 0)
+                return source;
+
+            if (index == 0)
+                return source.Tail;
+
+            // start from index 1
+            var beginning = ImList<T>.Empty.Prep(source.Head);
+            var remaining = source.Tail;
+            for (var i = 1; !remaining.IsEmpty; remaining = remaining.Tail, ++i)
+            {
+                if (i == index)
+                    return beginning.To(remaining.Tail, (it, _) => _.Prep(it));
                 beginning = beginning.Prep(remaining.Head);
             }
 
