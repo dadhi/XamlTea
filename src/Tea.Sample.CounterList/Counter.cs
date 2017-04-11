@@ -24,7 +24,7 @@ namespace Tea.Sample.CounterList
 
         public static UI<Msg> View(Model model)
         {
-            return div(Layout.Horizontal
+            return panel(Layout.Horizontal
                 , button("+", Msg.Increment)
                 , button("-", Msg.Decrement)
                 , text<Msg>($"{model.Count}")); // todo: don't like Msg here

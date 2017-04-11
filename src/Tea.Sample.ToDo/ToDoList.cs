@@ -4,6 +4,7 @@ namespace Tea.Sample.ToDo
 {
     using ImTools;
     using static UIParts;
+    using static Props;
 
     public static class ToDoList
     {
@@ -11,11 +12,13 @@ namespace Tea.Sample.ToDo
         {
             public readonly ImList<ToDoItem.Model> Items;
             public readonly string NewItem;
+            public readonly bool IsNewItemValid;
 
             public Model(ImList<ToDoItem.Model> items, string newItem)
             {
                 Items = items;
                 NewItem = newItem;
+                IsNewItemValid = !string.IsNullOrWhiteSpace(newItem);
             }
 
             public Model With(ImList<ToDoItem.Model> items)
@@ -56,8 +59,9 @@ namespace Tea.Sample.ToDo
 
             var addNewItem = msg as Msg.AddNewItem;
             if (addNewItem != null) // adds new item to list and reset new item text
-                return string.IsNullOrWhiteSpace(model.NewItem) ? model
-                    : new Model(model.Items.Prep(new ToDoItem.Model(model.NewItem)), string.Empty);
+                return model.IsNewItemValid 
+                    ? new Model(model.Items.Prep(new ToDoItem.Model(model.NewItem)), string.Empty)
+                    : model;
 
             var itemChanged = msg as Msg.ItemChanged;
             if (itemChanged != null)
@@ -76,11 +80,11 @@ namespace Tea.Sample.ToDo
 
         public static UI<Msg> View(this Model model)
         {
-            return div(Layout.Vertical, 
+            return panel(Layout.Vertical, 
                 model.Items.Map((it, i) => it.View().MapMsg(Msg.ItemChanged.It(i))).ToArray().Append(
-                div(Layout.Horizontal,
-                    input(model.NewItem, Msg.EditNewItem.It),
-                    button("Add", Msg.AddNewItem.It)
+                panel(Layout.Horizontal,
+                    input(model.NewItem, Msg.EditNewItem.It, props(width(50))),
+                    button("Add", Msg.AddNewItem.It, props(isEnabled(model.IsNewItemValid)))
                 )));
         }
 
@@ -136,7 +140,7 @@ namespace Tea.Sample.ToDo
 
         public static UI<Msg> View(this Model model)
         {
-            return div(Layout.Horizontal,
+            return panel(Layout.Horizontal,
                 checkbox(model.Text, model.IsDone, Msg.StateChanged.It),
                 button("remove", Msg.Remove.It));
         }

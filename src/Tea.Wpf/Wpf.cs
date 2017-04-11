@@ -35,13 +35,13 @@ namespace Tea.Wpf
                 throw new ArgumentNullException(nameof(ui));
 
             if (ui is UI.Text)
-                return new Label { Content = ui.Value };
+                return new Label { Content = ui.Content };
 
             var input = ui as UI.Input;
             if (input != null)
             {
-                var elem = new TextBox { Text = input.Value };
-                var ev = input.Event.Value;
+                var elem = new TextBox { Text = input.Content };
+                var ev = input.Changed.Value;
                 elem.TextChanged += (sender, _) => ev.Value(((TextBox)sender).Text);
                 return elem;
             }
@@ -49,13 +49,17 @@ namespace Tea.Wpf
             var button = ui as UI.Button;
             if (button != null)
             {
-                var elem = new Button { Content = button.Value };
-                var ev = button.Event.Value;
+                var elem = new Button
+                {
+                    Content = button.Content,
+                    IsEnabled = ui.Props.Get(Prop.IsEnabled.Enabled).Value
+                };
+                var ev = button.Clicked.Value;
                 elem.Click += (sender, _) => ev.Value(unit._);
                 return elem;
             }
 
-            var div = ui as UI.Div;
+            var div = ui as UI.Panel;
             if (div != null)
             {
                 var parts = div.Parts.Map(CreateUI);
@@ -68,8 +72,8 @@ namespace Tea.Wpf
             var check = ui as UI.CheckBox;
             if (check != null)
             {
-                var elem = new CheckBox { Content = check.Value, IsChecked = check.IsChecked };
-                var ev = check.Event.Value;
+                var elem = new CheckBox { Content = check.Content, IsChecked = check.IsChecked };
+                var ev = check.Changed.Value;
                 elem.Checked += (sender, _) => ev.Value(true);
                 elem.Unchecked += (sender, _) => ev.Value(false);
                 return elem;
@@ -81,13 +85,17 @@ namespace Tea.Wpf
         private static unit UpdateUI(UI ui, UIElement elem)
         {
             if (ui is UI.Text)
-                ((Label)elem).Content = ui.Value;
+                ((Label)elem).Content = ui.Content;
 
             else if (ui is UI.Input)
-                ((TextBox)elem).Text = ui.Value;
+                ((TextBox)elem).Text = ui.Content;
 
             else if (ui is UI.Button)
-                ((Button)elem).Content = ui.Value;
+            {
+                var button = (Button)elem;
+                button.Content = ui.Content;
+                button.IsEnabled = ui.Props.Get(Prop.IsEnabled.Enabled).Value;
+            }
 
             return unit._;
         }

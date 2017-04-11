@@ -16,7 +16,7 @@ namespace Tea.UnitTests
                 .Prep(10)
                 .Prep(15);
 
-            Assert.AreEqual(10, list.GetOrDefault(1));
+            Assert.AreEqual(10, list.GetAt(1));
         }
 
         [Test]

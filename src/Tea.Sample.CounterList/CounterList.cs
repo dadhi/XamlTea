@@ -3,6 +3,7 @@
 namespace Tea.Sample.CounterList
 {
     using static UIParts;
+    using static Props;
 
     public static class CounterList
     {
@@ -48,7 +49,7 @@ namespace Tea.Sample.CounterList
                 .Map((c, i) => Counter.View(c).MapMsg(msg => Msg.Modify.It(i, msg)))
                 .ToArray();
 
-            return div(Layout.Vertical, new[]
+            return panel(Layout.Vertical, props(), new[]
                 { button("Add", Msg.Insert.It)
                 , button("Remove", Msg.Remove.It)
                 }.Append(counterViews));

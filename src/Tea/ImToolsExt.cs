@@ -3,14 +3,63 @@ using ImTools;
 
 namespace Tea
 {
+    public sealed class unit
+    {
+        public static readonly unit _ = new unit();
+
+        public static unit Ignore<T>(T it) { return _; }
+
+        private unit() { }
+    }
+
+    public struct Pair<A, B>
+    {
+        public A a;
+        public B b;
+
+        public Pair(A a, B b)
+        {
+            this.a = a;
+            this.b = b;
+        }
+    }
+
+    public static class pair
+    {
+        public static Pair<A, B> of<A, B>(A a, B b)
+        {
+            return new Pair<A, B>(a, b);
+        }
+    }
+
     public static class ImToolsExt
     {
-        public static T GetOrDefault<T>(this ImList<T> source, int index)
+        public static ImList<T> FromArray<T>(params T[] values)
+        {
+            if (values.IsNullOrEmpty())
+                return ImList<T>.Empty;
+            var result = ImList<T>.Empty;
+            for (var i = 0; i < values.Length; i++)
+                result = result.Prep(values[i]);
+            return result;
+        }
+
+        public static T GetAt<T>(this ImList<T> source, int index)
         {
             if (source.IsEmpty)
                 return default(T);
             for (var i = 0; !source.IsEmpty; source = source.Tail, ++i)
                 if (i == index)
+                    return source.Head;
+            return default(T);
+        }
+
+        public static T GetOrDefault<T>(this ImList<T> source, Func<T, bool> condition)
+        {
+            if (source.IsEmpty)
+                return default(T);
+            for (; !source.IsEmpty; source = source.Tail)
+                if (condition(source.Head))
                     return source.Head;
             return default(T);
         }
