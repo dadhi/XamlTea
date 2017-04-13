@@ -48,7 +48,8 @@ namespace Tea
         public static Prop isEnabled(bool enabled) => enabled ? Prop.IsEnabled.Enabled : Prop.IsEnabled.Disabled;
         public static Prop tootip(string text) => new Prop.Tooltip(text);
 
-        public static TProp Get<TProp>(this ImList<Prop> props, TProp defaultProp = null) where TProp : Prop => 
+        public static TProp Get<TProp>(this ImList<Prop> props, TProp defaultProp = null) 
+            where TProp : Prop => 
             props.GetOrDefault(p => p is TProp) as TProp ?? defaultProp;
 
         public static ImList<Pair<Prop, Prop>> Diff(this ImList<Prop> it, ImList<Prop> other)

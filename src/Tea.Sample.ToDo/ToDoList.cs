@@ -83,7 +83,7 @@ namespace Tea.Sample.ToDo
             return panel(Layout.Vertical, 
                 model.Items.Map((it, i) => it.View().MapMsg(Msg.ItemChanged.It(i))).ToArray().Append(
                 panel(Layout.Horizontal,
-                    input(model.NewItem, Msg.EditNewItem.It, props(width(50))),
+                    input(model.NewItem, Msg.EditNewItem.It, props(width(100))),
                     button("Add", Msg.AddNewItem.It, props(isEnabled(model.IsNewItemValid)))
                 )));
         }

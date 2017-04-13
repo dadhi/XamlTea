@@ -41,6 +41,9 @@ namespace Tea.Wpf
             if (input != null)
             {
                 var elem = new TextBox { Text = input.Content };
+                var width = ui.Props.Get<Prop.Width>();
+                if (width != null)
+                    elem.Width = width.Value;
                 var ev = input.Changed.Value;
                 elem.TextChanged += (sender, _) => ev.Value(((TextBox)sender).Text);
                 return elem;
@@ -88,8 +91,13 @@ namespace Tea.Wpf
                 ((Label)elem).Content = ui.Content;
 
             else if (ui is UI.Input)
-                ((TextBox)elem).Text = ui.Content;
-
+            {
+                var textBox = (TextBox)elem;
+                textBox.Text = ui.Content;
+                var width = ui.Props.Get<Prop.Width>();
+                if (width != null)
+                    textBox.Width = width.Value;
+            }
             else if (ui is UI.Button)
             {
                 var button = (Button)elem;
