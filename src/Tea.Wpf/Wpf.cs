@@ -35,15 +35,17 @@ namespace Tea.Wpf
                 throw new ArgumentNullException(nameof(ui));
 
             if (ui is UI.Text)
-                return new Label { Content = ui.Content };
+            {
+                var elem = new Label { Content = ui.Content };
+                ApplyProps(elem, ui.Props);
+                return elem;
+            }
 
             var input = ui as UI.Input;
             if (input != null)
             {
                 var elem = new TextBox { Text = input.Content };
-                var width = ui.Props.Get<Prop.Width>();
-                if (width != null)
-                    elem.Width = width.Value;
+                ApplyProps(elem, ui.Props);
                 var ev = input.Changed.Value;
                 elem.TextChanged += (sender, _) => ev.Value(((TextBox)sender).Text);
                 return elem;
@@ -52,11 +54,8 @@ namespace Tea.Wpf
             var button = ui as UI.Button;
             if (button != null)
             {
-                var elem = new Button
-                {
-                    Content = button.Content,
-                    IsEnabled = ui.Props.Get(Prop.IsEnabled.Enabled).Value
-                };
+                var elem = new Button { Content = button.Content };
+                ApplyProps(elem, ui.Props);
                 var ev = button.Clicked.Value;
                 elem.Click += (sender, _) => ev.Value(unit._);
                 return elem;
@@ -68,6 +67,7 @@ namespace Tea.Wpf
                 var parts = div.Parts.Map(CreateUI);
                 var orientation = div.Layout == Layout.Vertical ? Orientation.Vertical : Orientation.Horizontal;
                 var elem = new StackPanel { Orientation = orientation };
+                ApplyProps(elem, ui.Props);
                 parts.To(0, (p, _) => elem.Children.Add(p));
                 return elem;
             }
@@ -76,6 +76,7 @@ namespace Tea.Wpf
             if (check != null)
             {
                 var elem = new CheckBox { Content = check.Content, IsChecked = check.IsChecked };
+                ApplyProps(elem, ui.Props);
                 var ev = check.Changed.Value;
                 elem.Checked += (sender, _) => ev.Value(true);
                 elem.Unchecked += (sender, _) => ev.Value(false);
@@ -85,25 +86,48 @@ namespace Tea.Wpf
             throw new NotSupportedException("The type of UI is not supported: " + ui.GetType());
         }
 
+        private static void ApplyProps(FrameworkElement elem, ImList<Prop> props)
+        {
+            props.To(unit._, (prop, _) =>
+            {
+                if (prop is Prop.Width)
+                    elem.Width = ((Prop.Width)prop).Value;
+                else if (prop is Prop.Height)
+                    elem.Height = ((Prop.Height)prop).Value;
+                else if (prop is Prop.IsEnabled)
+                    elem.IsEnabled = ((Prop.IsEnabled)prop).Value;
+                else if (prop is Prop.Tooltip)
+                    elem.ToolTip = ((Prop.Tooltip)prop).Value;
+                return _;
+            });
+
+        }
+
         private static unit UpdateUI(UI ui, UIElement elem)
         {
             if (ui is UI.Text)
-                ((Label)elem).Content = ui.Content;
-
+            {
+                var label = (Label)elem;
+                label.Content = ui.Content;
+            }
             else if (ui is UI.Input)
             {
                 var textBox = (TextBox)elem;
                 textBox.Text = ui.Content;
-                var width = ui.Props.Get<Prop.Width>();
-                if (width != null)
-                    textBox.Width = width.Value;
             }
             else if (ui is UI.Button)
             {
                 var button = (Button)elem;
                 button.Content = ui.Content;
-                button.IsEnabled = ui.Props.Get(Prop.IsEnabled.Enabled).Value;
             }
+            else if (ui is UI.CheckBox)
+            {
+                var checkBox = (CheckBox)elem;
+                checkBox.Content = ui.Content;
+                checkBox.IsChecked = ((UI.CheckBox)ui).IsChecked;
+            }
+
+            ApplyProps((FrameworkElement)elem, ui.Props);
 
             return unit._;
         }
@@ -163,7 +187,6 @@ namespace Tea.Wpf
             }
 
             // Skip event
-            //| EventUI _-> ()
             return unit._;
         }
     }

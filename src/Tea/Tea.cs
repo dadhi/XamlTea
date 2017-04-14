@@ -96,8 +96,9 @@ namespace Tea
             Content = content;
         }
 
-        public bool Equals(UI other) => 
+        public virtual bool Equals(UI other) => 
             other != null && 
+            other.GetType() == GetType() &&
             other.Content == Content &&
             Props.Diff(other.Props).IsEmpty;
 
@@ -136,6 +137,9 @@ namespace Tea
                 IsChecked = isChecked;
                 Changed = changed;
             }
+
+            public override bool Equals(UI other) => 
+                base.Equals(other) && ((CheckBox)other).IsChecked == IsChecked;
         }
 
         public class Panel : UI
@@ -148,6 +152,8 @@ namespace Tea
                 Layout = layout;
                 Parts = parts;
             }
+
+            public override bool Equals(UI other) => false; // todo: comparison here?
         }
     }
 
