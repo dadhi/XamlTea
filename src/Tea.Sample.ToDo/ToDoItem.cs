@@ -12,6 +12,11 @@ namespace Tea.Sample.ToDo
                 Text = text;
                 IsDone = isDone;
             }
+
+            public override string ToString()
+            {
+                return $"{{Text={Text},IsDone={IsDone}}}";
+            }
         }
 
         public abstract class Msg

@@ -1,6 +1,7 @@
 ﻿namespace Tea.Sample.ToDo
 {
     using System;
+    using System.Text;
     using ImTools;
     using static UIParts;
     using static Props;
@@ -23,6 +24,16 @@
             public Model With(ImList<ToDoItem.Model> items)
             {
                 return new Model(items, NewItem);
+            }
+
+            public override string ToString()
+            {
+                var s = new StringBuilder();
+                s.Append("{NewItem=").Append(NewItem);
+                s.Append(",Items=[");
+                Items.To(s, (it, i, _) => (i == 0 ? _ : _.Append(",")).Append(it.ToString()));
+                s.Append("]}");
+                return s.ToString();
             }
         }
 

@@ -289,6 +289,11 @@ namespace Tea
             return panel(layout, null, parts);
         }
 
+        public static UI<TMsg> panel<TMsg>(Layout layout, ImList<UI<TMsg>> parts)
+        {
+            return panel(layout, null, parts.ToArray());
+        }
+
         public static UI<TMsg> panel<TMsg>(Layout layout, 
             ImList<Prop> props = null, params UI<TMsg>[] parts)
         {

@@ -29,6 +29,8 @@ namespace Tea.Wpf
             }
         }
 
+        private static readonly Thickness _defaultMargin = new Thickness(2);
+
         private static UIElement CreateUI(UI ui)
         {
             if (ui == null)
@@ -37,6 +39,7 @@ namespace Tea.Wpf
             if (ui is UI.Text)
             {
                 var elem = new Label { Content = ui.Content };
+                elem.Margin = _defaultMargin;
                 ApplyProps(elem, ui.Props);
                 return elem;
             }
@@ -45,6 +48,7 @@ namespace Tea.Wpf
             if (input != null)
             {
                 var elem = new TextBox { Text = input.Content };
+                elem.Margin = _defaultMargin;
                 ApplyProps(elem, ui.Props);
                 var ev = input.Changed.Value;
                 elem.TextChanged += (sender, _) => ev.Value(((TextBox)sender).Text);
@@ -55,6 +59,7 @@ namespace Tea.Wpf
             if (button != null)
             {
                 var elem = new Button { Content = button.Content };
+                elem.Margin = _defaultMargin;
                 ApplyProps(elem, ui.Props);
                 var ev = button.Clicked.Value;
                 elem.Click += (sender, _) => ev.Value(unit._);
@@ -67,6 +72,7 @@ namespace Tea.Wpf
                 var parts = div.Parts.Map(CreateUI);
                 var orientation = div.Layout == Layout.Vertical ? Orientation.Vertical : Orientation.Horizontal;
                 var elem = new StackPanel { Orientation = orientation };
+                elem.Margin = _defaultMargin;
                 ApplyProps(elem, ui.Props);
                 parts.To(0, (p, _) => elem.Children.Add(p));
                 return elem;
@@ -76,6 +82,7 @@ namespace Tea.Wpf
             if (check != null)
             {
                 var elem = new CheckBox { Content = check.Content, IsChecked = check.IsChecked };
+                elem.Margin = _defaultMargin;
                 ApplyProps(elem, ui.Props);
                 var ev = check.Changed.Value;
                 elem.Checked += (sender, _) => ev.Value(true);
