@@ -1,7 +1,6 @@
-﻿using System;
-
-namespace Tea.Sample.ToDo
+﻿namespace Tea.Sample.ToDo
 {
+    using System;
     using ImTools;
     using static UIParts;
     using static Props;
@@ -59,7 +58,7 @@ namespace Tea.Sample.ToDo
 
             var addNewItem = msg as Msg.AddNewItem;
             if (addNewItem != null) // adds new item to list and reset new item text
-                return model.IsNewItemValid 
+                return model.IsNewItemValid
                     ? new Model(model.Items.Prep(new ToDoItem.Model(model.NewItem)), string.Empty)
                     : model;
 
@@ -71,7 +70,7 @@ namespace Tea.Sample.ToDo
                     return model.With(model.Items.Without(itemChanged.ItemIndex));
 
                 // propagate the rest of child mgs to child Update
-                return model.With(model.Items.With(itemChanged.ItemIndex, 
+                return model.With(model.Items.With(itemChanged.ItemIndex,
                     it => it.Update(itemChanged.ItemMsg)));
             }
 
@@ -80,7 +79,7 @@ namespace Tea.Sample.ToDo
 
         public static UI<Msg> View(this Model model)
         {
-            return panel(Layout.Vertical, 
+            return panel(Layout.Vertical,
                 model.Items.Map((it, i) => it.View().MapMsg(Msg.ItemChanged.It(i))).ToArray().Append(
                 panel(Layout.Horizontal,
                     input(model.NewItem, Msg.EditNewItem.It, props(width(100))),
@@ -99,50 +98,6 @@ namespace Tea.Sample.ToDo
         public static App<Msg, Model> App()
         {
             return UIApp.App(Init(), Update, View);
-        }
-    }
-
-    public static class ToDoItem
-    {
-        public class Model
-        {
-            public readonly string Text;
-            public readonly bool IsDone;
-
-            public Model(string text, bool isDone = false)
-            {
-                Text = text;
-                IsDone = isDone;
-            }
-        }
-
-        public abstract class Msg
-        {
-            public class StateChanged : Msg
-            {
-                public bool IsDone { get; private set; }
-                public static Msg It(bool isDone) { return new StateChanged { IsDone = isDone }; }
-            }
-
-            public class Remove : Msg
-            {
-                public static readonly Msg It = new Remove();
-            }
-        }
-
-        public static Model Update(this Model model, Msg msg)
-        {
-            var stateChanged = msg as Msg.StateChanged;
-            if (stateChanged != null)
-                return new Model(model.Text, stateChanged.IsDone);
-            return model;
-        }
-
-        public static UI<Msg> View(this Model model)
-        {
-            return panel(Layout.Horizontal,
-                checkbox(model.Text, model.IsDone, Msg.StateChanged.It),
-                button("remove", Msg.Remove.It));
         }
     }
 }

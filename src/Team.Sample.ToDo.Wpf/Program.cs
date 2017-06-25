@@ -13,7 +13,11 @@ namespace Team.Sample.ToDo.Wpf
         {
             var window = new Window { Title = "Tea Sample: TODO list" };
             var ui = Wpf.CreateUI(window);
-            UIApp.Run(ui, ToDoList.App());
+
+            //UIApp.Run(ui, ToDoList.App());
+
+            UIApp.Run(ui, ToDoCards.App());
+
             new Application().Run(window);
         }
     }

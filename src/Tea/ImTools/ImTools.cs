@@ -22,8 +22,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 
-using Tea;
-
 namespace ImTools
 {
     using System;
@@ -35,6 +33,18 @@ namespace ImTools
     /// <summary>Methods to work with immutable arrays, and general array sugar.</summary>
     public static class ArrayTools
     {
+        private static class EmptyArray<T>
+        {
+            public static readonly T[] Value = new T[0];
+        }
+
+        /// <summary>Returns singleton empty array of provided type.</summary> 
+        /// <typeparam name="T">Array item type.</typeparam> <returns>Empty array.</returns>
+        public static T[] Empty<T>()
+        {
+            return EmptyArray<T>.Value;
+        }
+
         /// <summary>Returns true if array is null or have no items.</summary> <typeparam name="T">Type of array item.</typeparam>
         /// <param name="source">Source array to check.</param> <returns>True if null or has no items, false otherwise.</returns>
         public static bool IsNullOrEmpty<T>(this T[] source)
@@ -161,16 +171,267 @@ namespace ImTools
             return source.RemoveAt(source.IndexOf(value));
         }
 
-        /// <summary>Returns singleton empty array of provided type.</summary> 
-        /// <typeparam name="T">Array item type.</typeparam> <returns>Empty array.</returns>
-        public static T[] Empty<T>()
+        /// <summary>Returns first item matching the <paramref name="predicate"/>, or default item value.</summary>
+        /// <typeparam name="T">item type</typeparam>
+        /// <param name="source">items collection to search</param>
+        /// <param name="predicate">condition to evaluate for each item.</param>
+        /// <returns>First item matching condition or default value.</returns>
+        public static T FindFirst<T>(this T[] source, Func<T, bool> predicate)
         {
-            return EmptyArray<T>.Value;
+            if (source != null && source.Length != 0)
+                for (var i = 0; i < source.Length; ++i)
+                {
+                    var item = source[i];
+                    if (predicate(item))
+                        return item;
+                }
+            return default(T);
         }
 
-        private static class EmptyArray<T>
+        private static T[] AppendTo<T>(T[] source, int sourcePos, int count, T[] results = null)
         {
-            public static readonly T[] Value = new T[0];
+            if (results == null)
+            {
+                var newResults = new T[count];
+                if (count == 1)
+                    newResults[0] = source[sourcePos];
+                else
+                    for (int i = 0, j = sourcePos; i < count; ++i, ++j)
+                        newResults[i] = source[j];
+                return newResults;
+            }
+
+            var matchCount = results.Length;
+            var appendedResults = new T[matchCount + count];
+            if (matchCount == 1)
+                appendedResults[0] = results[0];
+            else
+                Array.Copy(results, 0, appendedResults, 0, matchCount);
+
+            if (count == 1)
+                appendedResults[matchCount] = source[sourcePos];
+            else
+                Array.Copy(source, sourcePos, appendedResults, matchCount, count);
+
+            return appendedResults;
+        }
+
+        private static R[] AppendTo<T, R>(T[] source, int sourcePos, int count, Func<T, R> map, R[] results = null)
+        {
+            if (results == null || results.Length == 0)
+            {
+                var newResults = new R[count];
+                if (count == 1)
+                    newResults[0] = map(source[sourcePos]);
+                else
+                    for (int i = 0, j = sourcePos; i < count; ++i, ++j)
+                        newResults[i] = map(source[j]);
+                return newResults;
+            }
+
+            var oldResultsCount = results.Length;
+            var appendedResults = new R[oldResultsCount + count];
+            if (oldResultsCount == 1)
+                appendedResults[0] = results[0];
+            else
+                Array.Copy(results, 0, appendedResults, 0, oldResultsCount);
+
+            if (count == 1)
+                appendedResults[oldResultsCount] = map(source[sourcePos]);
+            else
+                Array.Copy(source, sourcePos, appendedResults, oldResultsCount, count);
+
+            return appendedResults;
+        }
+
+        /// <summary>Where method similar to Enumerable.Where but more performant and non necessary allocating.
+        /// It returns source array and does Not create new one if all items match the condition.</summary>
+        /// <typeparam name="T">Type of source items.</typeparam>
+        /// <param name="source">If null, the null will be returned.</param>
+        /// <param name="condition">Condition to keep items.</param>
+        /// <returns>New array if some items are filter out. Empty array if all items are filtered out. Original array otherwise.</returns>
+        public static T[] Match<T>(this T[] source, Func<T, bool> condition)
+        {
+            if (source == null || source.Length == 0)
+                return source;
+
+            if (source.Length == 1)
+                return condition(source[0]) ? source : Empty<T>();
+
+            if (source.Length == 2)
+            {
+                var condition0 = condition(source[0]);
+                var condition1 = condition(source[1]);
+                return condition0 && condition1 ? new[] { source[0], source[1] }
+                    : condition0 ? new[] { source[0] }
+                        : condition1 ? new[] { source[1] }
+                            : Empty<T>();
+            }
+
+            var matchStart = 0;
+            T[] matches = null;
+            var matchFound = false;
+
+            var i = 0;
+            while (i < source.Length)
+            {
+                matchFound = condition(source[i]);
+                if (!matchFound)
+                {
+                    // for accumulated matched items
+                    if (i != 0 && i > matchStart)
+                        matches = AppendTo(source, matchStart, i - matchStart, matches);
+                    matchStart = i + 1; // guess the next match start will be after the non-matched item
+                }
+                ++i;
+            }
+
+            // when last match was found but not all items are matched (hence matchStart != 0)
+            if (matchFound && matchStart != 0)
+                return AppendTo(source, matchStart, i - matchStart, matches);
+
+            if (matches != null)
+                return matches;
+
+            if (matchStart != 0) // no matches
+                return Empty<T>();
+
+            return source;
+        }
+
+        /// <summary>Where method similar to Enumerable.Where but more performant and non necessary allocating.
+        /// It returns source array and does Not create new one if all items match the condition.</summary>
+        /// <typeparam name="T">Type of source items.</typeparam> <typeparam name="R">Type of result items.</typeparam>
+        /// <param name="source">If null, the null will be returned.</param>
+        /// <param name="condition">Condition to keep items.</param> <param name="map">Converter from source to result item.</param>
+        /// <returns>New array of result items.</returns>
+        public static R[] Match<T, R>(this T[] source, Func<T, bool> condition, Func<T, R> map)
+        {
+            if (source == null)
+                return null;
+
+            if (source.Length == 0)
+                return Empty<R>();
+
+            if (source.Length == 1)
+            {
+                var item = source[0];
+                return condition(item) ? new[] { map(item) } : Empty<R>();
+            }
+
+            if (source.Length == 2)
+            {
+                var condition0 = condition(source[0]);
+                var condition1 = condition(source[1]);
+                return condition0 && condition1 ? new[] { map(source[0]), map(source[1]) }
+                : condition0 ? new[] { map(source[0]) }
+                : condition1 ? new[] { map(source[1]) }
+                : Empty<R>();
+            }
+
+            var matchStart = 0;
+            R[] matches = null;
+            var matchFound = false;
+
+            var i = 0;
+            while (i < source.Length)
+            {
+                matchFound = condition(source[i]);
+                if (!matchFound)
+                {
+                    // for accumulated matched items
+                    if (i != 0 && i > matchStart)
+                        matches = AppendTo(source, matchStart, i - matchStart, map, matches);
+                    matchStart = i + 1; // guess the next match start will be after the non-matched item
+                }
+                ++i;
+            }
+
+            // when last match was found but not all items are matched (hence matchStart != 0)
+            if (matchFound && matchStart != 0)
+                return AppendTo(source, matchStart, i - matchStart, map, matches);
+
+            if (matches != null)
+                return matches;
+
+            if (matchStart != 0) // no matches
+                return Empty<R>();
+
+            return AppendTo(source, 0, source.Length, map);
+        }
+
+        /// <summary>Maps all items from source to result array.</summary>
+        /// <typeparam name="T">Source item type</typeparam> <typeparam name="R">Result item type</typeparam>
+        /// <param name="source">Source items</param> <param name="map">Function to convert item from source to result.</param>
+        /// <returns>Converted items</returns>
+        public static R[] Map<T, R>(this T[] source, Func<T, R> map)
+        {
+            if (source == null)
+                return null;
+
+            var sourceCount = source.Length;
+            if (sourceCount == 0)
+                return Empty<R>();
+
+            if (sourceCount == 1)
+                return new[] { map(source[0]) };
+
+            if (sourceCount == 2)
+                return new[] { map(source[0]), map(source[1]) };
+
+            if (sourceCount == 3)
+                return new[] { map(source[0]), map(source[1]), map(source[2]) };
+
+            var results = new R[sourceCount];
+            for (var i = 0; i < source.Length; i++)
+                results[i] = map(source[i]);
+            return results;
+        }
+
+        /// <summary>Maps all items from source to result collection. 
+        /// If possible uses fast array Map otherwise Enumerable.Select.</summary>
+        /// <typeparam name="T">Source item type</typeparam> <typeparam name="R">Result item type</typeparam>
+        /// <param name="source">Source items</param> <param name="map">Function to convert item from source to result.</param>
+        /// <returns>Converted items</returns>
+        public static IEnumerable<R> Map<T, R>(this IEnumerable<T> source, Func<T, R> map)
+        {
+            if (source == null)
+                return null;
+            var arr = source as T[];
+            if (arr != null)
+                return arr.Map(map);
+            return source.Select(map);
+        }
+
+        /// <summary>If <paramref name="source"/> is array uses more effective Match for array, otherwise just calls Where</summary>
+        /// <typeparam name="T">Type of source items.</typeparam>
+        /// <param name="source">If null, the null will be returned.</param>
+        /// <param name="condition">Condition to keep items.</param>
+        /// <returns>Result items, may be an array.</returns>
+        public static IEnumerable<T> Match<T>(this IEnumerable<T> source, Func<T, bool> condition)
+        {
+            if (source == null)
+                return null;
+            var arr = source as T[];
+            if (arr != null)
+                return arr.Match(condition);
+            return source.Where(condition);
+        }
+
+        /// <summary>If <paramref name="source"/> is array uses more effective Match for array,
+        /// otherwise just calls Where, Select</summary>
+        /// <typeparam name="T">Type of source items.</typeparam> <typeparam name="R">Type of result items.</typeparam>
+        /// <param name="source">If null, the null will be returned.</param>
+        /// <param name="condition">Condition to keep items.</param>  <param name="map">Converter from source to result item.</param>
+        /// <returns>Result items, may be an array.</returns>
+        public static IEnumerable<R> Match<T, R>(this IEnumerable<T> source, Func<T, bool> condition, Func<T, R> map)
+        {
+            if (source == null)
+                return null;
+            var arr = source as T[];
+            if (arr != null)
+                return arr.Match(condition, map);
+            return source.Where(condition).Select(map);
         }
     }
 
@@ -1268,39 +1529,69 @@ namespace ImTools
         #endregion
     }
 
-    /// <summary>Forest of N <see cref="ImHashMap{K,V}"/> for faster* lookup, insert, delete performance. 
-    /// But without enumeration! Suitable for Cache structures. Maps are located via hash % N-of-maps.</summary>
-    /// <typeparam name="K">Type of key, should support GetHashCode.</typeparam> <typeparam name="V">Type of value.</typeparam>
-    public sealed class ImHashMapForest<K, V>
+    /// <summary>The concurrent HashTable.</summary>
+    /// <typeparam name="K">Type of the key</typeparam> <typeparam name="V">Type of the value</typeparam>
+    /// <typeparam name="TEqualityComparer">Better be a struct to enable `Equals` and `GetHashCode` inlining.</typeparam>
+    public class HashMap<K, V, TEqualityComparer> where TEqualityComparer : IEqualityComparer<K>, new()
     {
-        // defined as constants for fast (hash % NumberOfMaps)
-        private const int NumberOfMaps = 16;
-        private const int HashBitsToTree = NumberOfMaps - 1;
-
-        /// <summary>Empty forest to start with.</summary>
-        public static readonly ImHashMapForest<K, V> Empty = new ImHashMapForest<K, V>(new ImHashMap<K, V>[NumberOfMaps], 0);
-
-        /// <summary>Number of stored items in da forest.</summary>
-        public readonly int Count;
-
-        /// <summary>Returns true is empty.</summary>
-        public bool IsEmpty
+        internal struct Slot
         {
-            get { return Count == 0; }
+            public int Hash; // 0 - means slot is not occupied, ~1 means soft-removed item 
+            public K Key;
+            public V Value;
         }
 
-        /// <summary>Returns true if key is found and sets the value.</summary>
-        /// <param name="key">Key to look for.</param> <param name="value">Result value</param>
-        /// <returns>True if key found, false otherwise.</returns>
+        // ReSharper disable once FieldCanBeMadeReadOnly.Local
+        // No readonly because otherwise the struct will be copied on every call.
+        private TEqualityComparer _equalityComparer;
+
+        private const int HashOfRemoved = ~1;
+
+        private Slot[] _slots;
+        private Slot[] _newSlots; // the transition slots, that suppose to replace the slots
+
+        private int _count;
+
+        /// <summary>Initial size of underlying storage, prevents the unnecessary storage re-sizing and items migrations.</summary>
+        public const int InitialCapacityBitCount = 5; // aka 32
+
+        /// <summary>Amount of store items. 0 for empty map.</summary>
+        public int Count { get { return _count; } }
+
+        /// <summary>Constructor. Allows to set the <see cref="InitialCapacityBitCount"/>.</summary>
+        /// <param name="initialCapacityBitCount">Initial underlying buckets size.</param>
+        public HashMap(int initialCapacityBitCount = InitialCapacityBitCount)
+        {
+            _slots = new Slot[1 << initialCapacityBitCount];
+            _equalityComparer = new TEqualityComparer();
+        }
+
+        /// <summary>Looks for key in a tree and returns the value if found.</summary>
+        /// <param name="key">Key to look for.</param> <param name="value">The found value</param>
+        /// <returns>True if contains key.</returns>
         public bool TryFind(K key, out V value)
         {
-            var hash = key.GetHashCode();
+            var hash = _equalityComparer.GetHashCode(key) | 1; // | 1 is to distinguish from 0 - which plays role of empty slot marker
 
-            var treeIndex = hash & HashBitsToTree;
+            var slots = _slots;
+            var bits = slots.Length - 1;
+            var slot = slots[hash & bits];
+            if (slot.Hash == hash && _equalityComparer.Equals(slot.Key, key))
+            {
+                value = slot.Value;
+                return true;
+            }
 
-            var tree = _trees[treeIndex];
-            if (tree != null)
-                return tree.TryFind(hash, key, out value);
+            var step = 1;
+            while (slot.Hash != 0 && step < bits)
+            {
+                slot = slots[(hash + step++) & bits];
+                if (slot.Hash == hash && _equalityComparer.Equals(slot.Key, key))
+                {
+                    value = slot.Value;
+                    return true;
+                }
+            }
 
             value = default(V);
             return false;
@@ -1311,105 +1602,188 @@ namespace ImTools
         /// <returns>Found value or <paramref name="defaultValue"/>.</returns>
         public V GetValueOrDefault(K key, V defaultValue = default(V))
         {
-            var hash = key.GetHashCode();
-            var treeIndex = hash & HashBitsToTree;
-
-            var t = _trees[treeIndex];
-            if (t == null)
-                return defaultValue;
-
-            while (t.Height != 0 && t.Hash != hash)
-                t = hash < t.Hash ? t.Left : t.Right;
-            return t.Height != 0 && (ReferenceEquals(key, t.Key) || key.Equals(t.Key))
-                ? t.Value : t.GetConflictedValueOrDefault(key, defaultValue);
+            V value;
+            return TryFind(key, out value) ? value : defaultValue;
         }
 
         /// <summary>Returns new tree with added key-value. 
         /// If value with the same key is exist then the value is replaced.</summary>
         /// <param name="key">Key to add.</param><param name="value">Value to add.</param>
-        /// <returns>New tree with added or updated key-value.</returns>
-        public ImHashMapForest<K, V> AddOrUpdate(K key, V value)
+        public void AddOrUpdate(K key, V value)
         {
-            var hash = key.GetHashCode();
+            var hash = _equalityComparer.GetHashCode(key) | 1; // | 1 is to distinguish from 0 - which plays role of empty slot marker
 
-            var treeIndex = hash & HashBitsToTree;
+            while (true)
+            {
+                var slots = _newSlots ?? _slots;
+                var slotCount = slots.Length;
+                var bits = slotCount - 1;
 
-            var trees = _trees;
-            var tree = trees[treeIndex];
-            if (tree == null)
-                tree = ImHashMap<K, V>.Empty;
+                // search for the next empty item slot
+                for (var step = 0; step < bits; ++step)
+                {
+                    var index = (hash + step) & bits;
 
-            tree = tree.AddOrUpdate(hash, key, value);
+                    // fills only an empty slot, not the removed slot
+                    if (Interlocked.CompareExchange(ref slots[index].Hash, hash, 0) == 0)
+                    {
+                        slots[index].Key = key;
+                        slots[index].Value = value;
 
-            var newTrees = new ImHashMap<K, V>[NumberOfMaps];
-            Array.Copy(trees, 0, newTrees, 0, NumberOfMaps);
-            newTrees[treeIndex] = tree;
+                        // ensure that we operate on the same slots: either re-populating or the stable one
+                        if (slots != _newSlots && slots != _slots)
+                            continue;
 
-            return new ImHashMapForest<K, V>(newTrees, Count + 1);
+                        Interlocked.Increment(ref _count);
+                        return;
+                    }
+
+                    // update:
+                    if (slots[index].Hash == hash && _equalityComparer.Equals(slots[index].Key, key))
+                    {
+                        slots[index].Value = value;
+
+                        // ensure that we operate on the same slots: either re-populating or the stable one
+                        if (slots != _newSlots && slots != _slots)
+                            continue;
+
+                        // no count incremental here
+                        return;
+                    }
+                }
+
+                // Re-try whole operation if other thread re-populated slots in between and changed the reference
+                // Otherwise (if we are on the same slots) re-populate.
+                var newSlots = new Slot[slotCount << 1];
+                if (Interlocked.CompareExchange(ref _newSlots, newSlots, null) != null)
+                    continue;
+
+                Repopulate(newSlots, slots, hash, key, value);
+
+                if (Interlocked.CompareExchange(ref _slots, newSlots, slots) == slots)
+                {
+                    Interlocked.Exchange(ref _newSlots, null);
+                    Interlocked.Increment(ref _count);
+                    return;
+                }
+            }
         }
 
-        /// <summary>Looks for <paramref name="key"/> and replaces its value with new <paramref name="value"/></summary>
-        /// <param name="key">Key to look for.</param>
-        /// <param name="value">New value to replace key value with.</param>
-        /// <returns>New tree with updated value or the SAME tree if no key found.</returns>
-        public ImHashMapForest<K, V> Update(K key, V value)
+        /// <summary>Removes the value with passed key. 
+        /// Actually it is a SOFT REMOVE which marks slot with found key as removed, without compacting the underlying array.</summary>
+        /// <param name="key"></param><returns>The true if key was found, false otherwise.</returns>
+        public bool Remove(K key)
         {
-            var hash = key.GetHashCode();
+            var hash = _equalityComparer.GetHashCode(key) | 1; // | 1 is to distinguish from 0 - which plays role of empty slot marker
 
-            var treeIndex = hash & HashBitsToTree;
+            var slots = _slots;
+            var bits = slots.Length - 1;
 
-            var trees = _trees;
-            var tree = trees[treeIndex];
-            if (tree == null)
-                return this;
+            // search until the empty slot
+            for (var i = 0; i < bits; ++i)
+            {
+                var index = (hash + i) & bits;
+                var slot = slots[index];
+                if (slot.Hash == HashOfRemoved)
+                    continue; // prune the table
 
-            var newTree = tree.Update(hash, key, value, null);
-            if (newTree == tree)
-                return this;
+                if (slot.Hash == hash && key.Equals(slot.Key))
+                {
+                    // mark as removed
+                    if (Interlocked.CompareExchange(ref slots[index].Hash, HashOfRemoved, hash) == hash)
+                        Interlocked.Decrement(ref _count);
+                    return true;
+                }
 
-            var newTrees = new ImHashMap<K, V>[NumberOfMaps];
-            Array.Copy(trees, 0, newTrees, 0, NumberOfMaps);
-            newTrees[treeIndex] = newTree;
+                if (slot.Hash == 0)
+                    break; // finish search on empty slot But not on removed slot
+            }
 
-            return new ImHashMapForest<K, V>(newTrees, Count);
+            return false;
         }
 
-        /// <summary>Removes or updates value for specified key, or does nothing if key is not found.
-        /// Based on Eric Lippert http://blogs.msdn.com/b/ericlippert/archive/2008/01/21/immutability-in-c-part-nine-academic-plus-my-avl-tree-implementation.aspx </summary>
-        /// <param name="key">Key to look for.</param> 
-        /// <returns>New tree with removed or updated value.</returns>
-        public ImHashMapForest<K, V> Remove(K key)
+        private static void Repopulate(Slot[] newSlots, Slot[] slots, int hash, K key, V value)
         {
-            var hash = key.GetHashCode();
+            var newBits = newSlots.Length - 1;
+            for (var step = 0; step < newBits; ++step)
+            {
+                var index = (hash + step) & newBits;
+                if (Interlocked.CompareExchange(ref newSlots[index].Hash, hash, 0) == 0)
+                {
+                    newSlots[index].Key = key;
+                    newSlots[index].Value = value;
+                    break;
+                }
+            }
 
-            var treeIndex = hash & HashBitsToTree;
+            for (var i = 0; i < slots.Length; i++)
+            {
+                var slot = slots[i];
+                if (slot.Hash == HashOfRemoved)
+                    continue; // prune the slots from the removed items
 
-            var trees = _trees;
-            var tree = trees[treeIndex];
-            if (tree == null)
-                return this; // nothing to delete
+                for (var step = 0; step < newBits; ++step)
+                {
+                    hash = slot.Hash;
+                    var index = (hash + step) & newBits;
+                    if (Interlocked.CompareExchange(ref newSlots[index].Hash, hash, 0) == 0)
+                    {
+                        newSlots[index].Key = slot.Key;
+                        newSlots[index].Value = slot.Value;
+                        break;
+                    }
+                }
+            }
+        }
+    }
 
-            var newTree = tree.Remove(hash, key);
-            if (newTree == tree)
-                return this;
-
-            var newTrees = new ImHashMap<K, V>[NumberOfMaps];
-            Array.Copy(trees, 0, newTrees, 0, NumberOfMaps);
-            newTrees[treeIndex] = newTree;
-
-            return new ImHashMapForest<K, V>(newTrees, Count - 1);
+    /// <summary>Custom comparer for int values for max performance. 
+    /// Defined as `struct` so the methods can be in-lined.</summary>
+    public struct IntEqualityComparer : IEqualityComparer<int>
+    {
+        /// <inheritdoc />
+        public bool Equals(int x, int y)
+        {
+            return x == y;
         }
 
-        #region Implementation
-
-        private readonly ImHashMap<K, V>[] _trees;
-
-        private ImHashMapForest(ImHashMap<K, V>[] newTrees, int count)
+        /// <inheritdoc />
+        public int GetHashCode(int obj)
         {
-            _trees = newTrees;
-            Count = count;
+            return obj;
+        }
+    }
+
+    /// <summary>Sugar for easy defining of map with int Key. Uses <see cref="IntEqualityComparer"/>.</summary>
+    /// <typeparam name="V">Type of value.</typeparam>
+    public class IntHashMap<V> : HashMap<int, V, IntEqualityComparer>
+    {
+        /// <inheritdoc />
+        public IntHashMap(int initialCapacityBitCount = InitialCapacityBitCount) : base(initialCapacityBitCount) { }
+    }
+
+    /// <summary>Custom comparer for Type values for max performance. 
+    /// Defined as `struct` so the methods can be in-lined.</summary>
+    public struct TypeEqualityComparer : IEqualityComparer<Type>
+    {
+        /// <inheritdoc />
+        public bool Equals(Type x, Type y)
+        {
+            return ReferenceEquals(x, y);
         }
 
-        #endregion
+        /// <inheritdoc />
+        public int GetHashCode(Type obj)
+        {
+            return obj.GetHashCode();
+        }
+    }
+
+    /// <summary>Sugar for easy defining of map with int Key. Uses <see cref="IntEqualityComparer"/>.</summary>
+    /// <typeparam name="V">Type of value.</typeparam>
+    public class TypeHashMap<V> : HashMap<Type, V, TypeEqualityComparer>
+    {
+        /// <inheritdoc />
+        public TypeHashMap(int initialCapacityBitCount = InitialCapacityBitCount) : base(initialCapacityBitCount) { }
     }
 }

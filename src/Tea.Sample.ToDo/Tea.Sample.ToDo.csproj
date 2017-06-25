@@ -40,6 +40,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ToDoCards.cs" />
+    <Compile Include="ToDoItem.cs" />
     <Compile Include="ToDoList.cs" />
   </ItemGroup>
   <ItemGroup>
