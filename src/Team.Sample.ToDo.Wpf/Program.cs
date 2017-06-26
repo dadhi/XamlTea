@@ -11,12 +11,11 @@ namespace Team.Sample.ToDo.Wpf
         [STAThread]
         public static void Main()
         {
-            var window = new Window { Title = "Tea Sample: TODO list" };
+            var window = new Window { Title = "Tea Sample" };
             var ui = Wpf.CreateUI(window);
 
-            //UIApp.Run(ui, ToDoList.App());
-
-            UIApp.Run(ui, ToDoCards.App());
+            //UIApp.Run(ui, ToDoList.Init());
+            UIApp.Run(ui, ToDoCards.Init());
 
             new Application().Run(window);
         }

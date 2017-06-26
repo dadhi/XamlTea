@@ -10,9 +10,9 @@ namespace Tea.Sample.CounterList.Wpf
         [STAThread]
         public static void Main()
         {
-            var window = new Window { Title = "Tea Sample: Counter List" };
+            var window = new Window { Title = "Tea Sample" };
             var ui = CreateUI(window);
-            UIApp.Run(ui, CounterList.App());
+            UIApp.Run(ui, CounterList.Initial);
             new Application().Run(window);
         }
     }

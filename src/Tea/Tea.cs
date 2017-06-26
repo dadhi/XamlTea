@@ -41,7 +41,7 @@ namespace Tea
 
     public static class Props
     {
-        public static ImList<Prop> props(params Prop[] ps) => ImToolsExt.FromArray(ps);
+        public static ImList<Prop> props(params Prop[] ps) => ImToolsExt.List(ps);
 
         public static Prop width(int n) => new Prop.Width(n);
         public static Prop height(int n) => new Prop.Height(n);
@@ -221,33 +221,25 @@ namespace Tea
     public class UI<TMsg>
     {
         public readonly UI BaseUI;
-        public Func<TMsg, unit> TypedEvent;
+        public Func<TMsg, unit> OnMessage;
 
-        public UI(UI baseUi, Func<TMsg, unit> typedEvent)
+        public UI(UI baseUi, Func<TMsg, unit> onMessage)
         {
             BaseUI = baseUi;
-            TypedEvent = typedEvent;
+            OnMessage = onMessage;
         }
     }
 
-    /// Simple UI application, without commands and subscriptions.
-    public class App<TMsg, TModel>
+    /// <summary>Basic interface for component with Update, View but without Commands, Subscriptions.</summary>
+    public interface IComponent<out TModel, TMsg> where TModel : IComponent<TModel, TMsg>
     {
-        public readonly TModel Model;
-        public readonly Func<TModel, TMsg, TModel> Update;
-        public readonly Func<TModel, UI<TMsg>> View;
-
-        public App(TModel model, Func<TModel, TMsg, TModel> update, Func<TModel, UI<TMsg>> view)
-        {
-            Model = model;
-            Update = update;
-            View = view;
-        }
+        TModel Update(TMsg msg);
+        UI<TMsg> View();
     }
 
     public interface INativeUI
     {
-        void Send(ImList<UIUpdate> uiUpdates);
+        void ApplyUpdates(ImList<UIUpdate> uiUpdates);
     }
 
     public static class UIParts
@@ -262,7 +254,7 @@ namespace Tea
         {
             var ev = Event.Of<string>(unit.Ignore);
             var ui = new UI<TMsg>(new UI.Input(props, text, ev), unit.Ignore);
-            ev.Value.Swap(s => ui.TypedEvent(changed(s)));
+            ev.Value.Swap(s => ui.OnMessage(changed(s)));
             return ui;
         }
 
@@ -271,7 +263,7 @@ namespace Tea
         {
             var ev = Event.Of<unit>(unit.Ignore);
             var ui = new UI<TMsg>(new UI.Button(props, text, ev), unit.Ignore);
-            ev.Value.Swap(_ => ui.TypedEvent(clicked));
+            ev.Value.Swap(_ => ui.OnMessage(clicked));
             return ui;
         }
 
@@ -280,7 +272,7 @@ namespace Tea
         {
             var ev = Event.Of<bool>(unit.Ignore);
             var ui = new UI<TMsg>(new UI.CheckBox(props, text, isChecked, ev), unit.Ignore);
-            ev.Value.Swap(check => ui.TypedEvent(changed(check)));
+            ev.Value.Swap(check => ui.OnMessage(changed(check)));
             return ui;
         }
 
@@ -305,9 +297,9 @@ namespace Tea
 
             var ui = new UI<TMsg>(new UI.Panel(props, layout, uiParts), unit.Ignore);
 
-            Func<TMsg, unit> raise = msg => ui.TypedEvent(msg);
+            Func<TMsg, unit> raise = msg => ui.OnMessage(msg);
             for (var i = 0; i < parts.Length; i++)
-                parts[i].TypedEvent = raise;
+                parts[i].OnMessage = raise;
 
             return ui;
         }
@@ -315,12 +307,12 @@ namespace Tea
 
     public static class UIApp
     {
-        // todo: May be combined with the view to don't write it each time
+        // todo: May be combined with the view to avoid repeating in each parent component
         /// Returns a new UI component mapping the message event using the given function.
-        public static UI<TMsg> MapMsg<TSubMsg, TMsg>(this UI<TSubMsg> source, Func<TSubMsg, TMsg> map)
+        public static UI<TMsg> MapMsg<TItemMsg, TMsg>(this UI<TItemMsg> source, Func<TItemMsg, TMsg> map)
         {
             var result = new UI<TMsg>(source.BaseUI, unit.Ignore);
-            source.TypedEvent = msg => result.TypedEvent(map(msg));
+            source.OnMessage = msg => result.OnMessage(map(msg));
             return result;
         }
 
@@ -416,38 +408,28 @@ namespace Tea
             };
         }
 
-        // Returns a UI application from a UI model, update and view.
-        public static App<TMsg, TModel> App<TMsg, TModel>(
-            TModel model,
-            Func<TModel, TMsg, TModel> update,
-            Func<TModel, UI<TMsg>> view)
-        {
-            return new App<TMsg, TModel>(model, update, view);
-        }
-
         // Runs a UI application given a native UI.
-        public static void Run<TMsg, TModel>(INativeUI nativeUI, App<TMsg, TModel> app)
+        public static void Run<TMsg, TModel>(INativeUI nativeUI, IComponent<TModel, TMsg> component) 
+            where TModel : IComponent<TModel, TMsg>
         {
-            Func<TModel, UI<TMsg>, TMsg, unit> handleRecursively = null;
-            handleRecursively = (model, view, message) =>
+            unit UpdateViewLoop(IComponent<TModel, TMsg> model, UI<TMsg> ui, TMsg message)
             {
-                var newModel = app.Update(model, message);
-                var newUI = app.View(newModel);
+                var newModel = model.Update(message);
+                var newUI = newModel.View();
+                newUI.OnMessage = msg => UpdateViewLoop(newModel, newUI, msg);
 
-                newUI.TypedEvent = msg => handleRecursively(newModel, newUI, msg);
-
-                var uiUpdates = view.Diff(newUI);
+                var uiUpdates = ui.Diff(newUI);
                 uiUpdates.To(unit._, (update, _) => (update as UIUpdate.Event)?.Raise(unit._));
 
-                nativeUI.Send(uiUpdates);
+                nativeUI.ApplyUpdates(uiUpdates);
 
                 return unit._;
-            };
+            }
 
             // Render and insert intial UI from the model
-            var initialUI = app.View(app.Model);
-            initialUI.TypedEvent = msg => handleRecursively(app.Model, initialUI, msg);
-            nativeUI.Send(ImList<UIUpdate>.Empty.Prep(new UIUpdate.Insert(ImList<int>.Empty, initialUI.BaseUI)));
+            var initialUI = component.View();
+            initialUI.OnMessage = msg => UpdateViewLoop(component, initialUI, msg);
+            nativeUI.ApplyUpdates(ImList<UIUpdate>.Empty.Prep(new UIUpdate.Insert(ImList<int>.Empty, initialUI.BaseUI)));
         }
     }
 }

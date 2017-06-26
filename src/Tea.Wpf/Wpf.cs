@@ -23,7 +23,7 @@ namespace Tea.Wpf
                 _root = root;
             }
 
-            public void Send(ImList<UIUpdate> uiUpdates)
+            public void ApplyUpdates(ImList<UIUpdate> uiUpdates)
             {
                 uiUpdates.To(unit._, (update, _) => _apply(update, _root));
             }

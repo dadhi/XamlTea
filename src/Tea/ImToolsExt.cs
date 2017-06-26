@@ -34,7 +34,7 @@ namespace Tea
 
     public static class ImToolsExt
     {
-        public static ImList<T> FromArray<T>(params T[] values)
+        public static ImList<T> List<T>(params T[] values)
         {
             if (values.IsNullOrEmpty())
                 return ImList<T>.Empty;
@@ -62,11 +62,6 @@ namespace Tea
                 if (condition(source.Head))
                     return source.Head;
             return default(T);
-        }
-
-        public static ImList<T> Then<T>(this T item, ImList<T> rest = null)
-        {
-            return (rest ?? ImList<T>.Empty).Prep(item);
         }
 
         public static ImList<T> With<T>(this ImList<T> source, int index, Func<T, T> update)

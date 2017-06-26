@@ -1,18 +1,11 @@
 ﻿using ImTools;
+using static Tea.UIParts;
+using static Tea.Props;
 
 namespace Tea.Sample.CounterList
 {
-    using static UIParts;
-    using static Props;
-
-    public static class CounterList
+    public sealed class CounterList : IComponent<CounterList, CounterList.Msg>
     {
-        public sealed class Model
-        {
-            public readonly ImList<Counter.Model> Counters;
-            public Model(ImList<Counter.Model> counters) { Counters = counters; }
-        }
-
         public abstract class Msg
         {
             public sealed class Insert : Msg { public static readonly Msg It = new Insert(); }
@@ -25,39 +18,38 @@ namespace Tea.Sample.CounterList
             }
         }
 
-        public static Model Update(Model model, Msg msg)
+        public static readonly CounterList Initial = new CounterList(ImList<Counter>.Empty);
+
+        public readonly ImList<Counter> Counters;
+        public CounterList(ImList<Counter> counters) { Counters = counters; }
+
+        public CounterList Update(Msg msg)
         {
             if (msg is Msg.Insert)
-                return new Model(model.Counters.Prep(new Counter.Model(0)));
+                return new CounterList(Counters.Prep(new Counter(0)));
 
-            if (model.Counters.IsEmpty)
-                return model;
+            if (Counters.IsEmpty)
+                return this;
 
             if (msg is Msg.Remove)
-                return new Model(model.Counters.Tail);
+                return new CounterList(Counters.Tail);
 
-            var modify = msg as Msg.Modify;
-            if (modify != null)
-                return new Model(model.Counters.With(modify.Index, c => c.Update(modify.CounterMsg)));
+            if (msg is Msg.Modify modify)
+                return new CounterList(Counters.With(modify.Index, c => c.Update(modify.CounterMsg)));
 
-            return model;
+            return this;
         }
 
-        public static UI<Msg> View(Model model)
+        public UI<Msg> View()
         {
-            var counterViews = model.Counters
-                .Map((c, i) => Counter.View(c).MapMsg(msg => Msg.Modify.It(i, msg)))
+            var counterViews = Counters
+                .Map((c, i) => c.View().MapMsg(msg => Msg.Modify.It(i, msg)))
                 .ToArray();
 
             return panel(Layout.Vertical, props(), new[]
-                { button("Add", Msg.Insert.It)
-                , button("Remove", Msg.Remove.It)
+            { button("Add", Msg.Insert.It)
+                    , button("Remove", Msg.Remove.It)
                 }.Append(counterViews));
-        }
-
-        public static App<Msg, Model> App()
-        {
-            return UIApp.App(new Model(ImList<Counter.Model>.Empty), Update, View);
         }
     }
 }

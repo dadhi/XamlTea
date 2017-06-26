@@ -4,7 +4,7 @@ namespace Tea.Sample.ToDo
 {
     public static class ToDoItem
     {
-        public class Model
+        public class Model : IComponent<Model, Msg>
         {
             public readonly string Text;
             public readonly bool IsDone;
@@ -19,6 +19,18 @@ namespace Tea.Sample.ToDo
             {
                 return $"{{Text={Text},IsDone={IsDone}}}";
             }
+
+            public Model Update(Msg msg)
+            {
+                if (msg is Msg.StateChanged stateChanged)
+                    return new Model(Text, stateChanged.IsDone);
+                return this;
+            }
+
+            public UI<Msg> View()
+            {
+                return checkbox(Text, IsDone, Msg.StateChanged.It);
+            }
         }
 
         public abstract class Msg
@@ -28,19 +40,6 @@ namespace Tea.Sample.ToDo
                 public bool IsDone { get; private set; }
                 public static Msg It(bool isDone) { return new StateChanged { IsDone = isDone }; }
             }
-        }
-
-        public static Model Update(this Model model, Msg msg)
-        {
-            var stateChanged = msg as Msg.StateChanged;
-            if (stateChanged != null)
-                return new Model(model.Text, stateChanged.IsDone);
-            return model;
-        }
-
-        public static UI<Msg> View(this Model model)
-        {
-            return checkbox(model.Text, model.IsDone, Msg.StateChanged.It);
         }
     }
 }

@@ -1,13 +1,13 @@
+using System;
+using System.Text;
+using ImTools;
+using static Tea.UIParts;
+
 namespace Tea.Sample.ToDo
 {
-    using System;
-    using System.Text;
-    using ImTools;
-    using static UIParts;
-
     public static class ToDoCards
     {
-        public class Model
+        public class Model : IComponent<Model, Msg>
         {
             public readonly ImList<ToDoList.Model> Cards;
 
@@ -28,6 +28,35 @@ namespace Tea.Sample.ToDo
                 return s.ToString();
             }
 
+            public Model Update(Msg msg)
+            {
+                if (msg is Msg.SetModel setModel)
+                    return setModel.Model;
+
+                if (msg is Msg.ItemChanged itemChanged)
+                    return new Model(
+                       Cards.With(itemChanged.ItemIndex, it => it.Update(itemChanged.ItemMsg)),
+                       History.Prep(this));
+
+                return this;
+            }
+
+            public UI<Msg> View()
+            {
+                return
+                    panel(Layout.Vertical,
+                        panel(Layout.Horizontal,
+                            Cards.Map((it, i) => it.View().MapMsg(Msg.ItemChanged.It(i)))
+                        ),
+                        panel(Layout.Vertical,
+                            History.Map(m =>
+                                panel(Layout.Horizontal,
+                                    button("apply", Msg.SetModel.It(m)),
+                                    text<Msg>(m.ToString())))
+                        )
+                    );
+
+            }
         }
 
         public abstract class Msg
@@ -42,6 +71,7 @@ namespace Tea.Sample.ToDo
             {
                 public int ItemIndex { get; private set; }
                 public ToDoList.Msg ItemMsg { get; private set; }
+
                 public static Func<ToDoList.Msg, Msg> It(int index)
                 {
                     return msg => new ItemChanged { ItemIndex = index, ItemMsg = msg };
@@ -49,48 +79,11 @@ namespace Tea.Sample.ToDo
             }
         }
 
-        public static Model Update(this Model model, Msg msg)
-        {
-            var itemChanged = msg as Msg.ItemChanged;
-            if (itemChanged != null)
-                return new Model(
-                    model.Cards.With(itemChanged.ItemIndex, it => it.Update(itemChanged.ItemMsg)),
-                    model.History.Prep(model));
-
-            var setModel = msg as Msg.SetModel;
-            if (setModel != null)
-                return setModel.Model;
-
-            return model;
-        }
-
-        public static UI<Msg> View(this Model model)
-        {
-            return
-                panel(Layout.Vertical,
-                    panel(Layout.Horizontal, 
-                        model.Cards.Map((it, i) => it.View().MapMsg(Msg.ItemChanged.It(i)))
-                    ),
-                    panel(Layout.Vertical, 
-                        model.History.Map(m => 
-                            panel(Layout.Horizontal,
-                                button("apply", Msg.SetModel.It(m)),
-                                text<Msg>(m.ToString())))
-                    )
-                );
-        }
-
         public static Model Init()
         {
             return new Model(
-                ToDoList.Init().Then(
-                ToDoList.Init().Then()),
+                ImList<ToDoList.Model>.Empty.Prep(ToDoList.Init()).Prep(ToDoList.Init()),
                 ImList<Model>.Empty);
-        }
-
-        public static App<Msg, Model> App()
-        {
-            return UIApp.App(Init(), Update, View);
         }
     }
 }

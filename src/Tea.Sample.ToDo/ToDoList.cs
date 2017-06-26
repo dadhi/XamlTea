@@ -1,14 +1,14 @@
-﻿namespace Tea.Sample.ToDo
-{
-    using System;
-    using System.Text;
-    using ImTools;
-    using static UIParts;
-    using static Props;
+﻿using System;
+using System.Text;
+using ImTools;
+using static Tea.UIParts;
+using static Tea.Props;
 
+namespace Tea.Sample.ToDo
+{
     public static class ToDoList
     {
-        public class Model
+        public class Model : IComponent<Model, Msg>
         {
             public readonly ImList<ToDoItem.Model> Items;
             public readonly string NewItem;
@@ -34,6 +34,42 @@
                 Items.To(s, (it, i, _) => (i == 0 ? _ : _.Append(",")).Append(it.ToString()));
                 s.Append("]}");
                 return s.ToString();
+            }
+
+            public Model Update(Msg msg)
+            {
+                if (msg is Msg.EditNewItem editNewItem)
+                    return new Model(Items, editNewItem.Text);
+
+                if (msg is Msg.AddNewItem)
+                    return IsNewItemValid
+                        ? new Model(Items.Prep(new ToDoItem.Model(NewItem)), string.Empty)
+                        : this;
+
+                if (msg is Msg.RemoveItem removeItem)
+                    return With(Items.Without(removeItem.ItemIndex));
+
+                // propagate the rest of child mgs to child Update
+                if (msg is Msg.ItemChanged itemChanged)
+                    return With(Items.With(itemChanged.ItemIndex, it => it.Update(itemChanged.ItemMsg)));
+
+                return this;
+            }
+
+            public UI<Msg> View()
+            {
+                return panel(Layout.Vertical,
+                    Items.Map((it, i) =>
+                        panel(Layout.Horizontal,
+                            it.View().MapMsg(Msg.ItemChanged.It(i)),
+                            button("remove", Msg.RemoveItem.It(i))
+                        )
+                    ).ToArray()
+                    .Append(
+                        panel(Layout.Horizontal,
+                            input(NewItem, Msg.EditNewItem.It, props(width(100))),
+                            button("Add", Msg.AddNewItem.It, props(isEnabled(IsNewItemValid)))
+                        )));
             }
         }
 
@@ -67,59 +103,12 @@
             }
         }
 
-        public static Model Update(this Model model, Msg msg)
-        {
-            var editNewItem = msg as Msg.EditNewItem;
-            if (editNewItem != null)
-                return new Model(model.Items, editNewItem.Text);
-
-            var addNewItem = msg as Msg.AddNewItem;
-            if (addNewItem != null) // adds new item to list and reset new item text
-                return model.IsNewItemValid
-                    ? new Model(model.Items.Prep(new ToDoItem.Model(model.NewItem)), string.Empty)
-                    : model;
-
-            if (msg is Msg.RemoveItem removeItem)
-                return model.With(model.Items.Without(removeItem.ItemIndex));
-
-            // propagate the rest of child mgs to child Update
-            var itemChanged = msg as Msg.ItemChanged;
-            if (itemChanged != null)
-            {
-                return model.With(model.Items.With(itemChanged.ItemIndex,
-                    it => it.Update(itemChanged.ItemMsg)));
-            }
-
-            return model;
-        }
-
-        public static UI<Msg> View(this Model model)
-        {
-            return panel(Layout.Vertical,
-                model.Items.Map((it, i) =>
-                    panel(Layout.Horizontal,
-                        it.View().MapMsg(Msg.ItemChanged.It(i)),
-                        button("remove", Msg.RemoveItem.It(i))
-                    )
-                ).ToArray()
-                .Append(
-                panel(Layout.Horizontal,
-                    input(model.NewItem, Msg.EditNewItem.It, props(width(100))),
-                    button("Add", Msg.AddNewItem.It, props(isEnabled(model.IsNewItemValid)))
-                )));
-        }
-
         public static Model Init()
         {
             return new Model(ImList<ToDoItem.Model>.Empty
                 .Prep(new ToDoItem.Model("foo"))
                 .Prep(new ToDoItem.Model("bar", true)),
                 string.Empty);
-        }
-
-        public static App<Msg, Model> App()
-        {
-            return UIApp.App(Init(), Update, View);
         }
     }
 }
