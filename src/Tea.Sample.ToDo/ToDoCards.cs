@@ -83,10 +83,8 @@ namespace Tea.Sample.ToDo
         public static Model Init()
         {
             return new Model(
-                ImList<ToDoList.Model>.Empty
-                    .Prep(ToDoList.Init())
-                    .Prep(ToDoList.Init())
-                    .Prep(ToDoList.Init()),
+                ToDoList.Init().Then(
+                ToDoList.Init().Then()),
                 ImList<Model>.Empty);
         }
 

@@ -50,6 +50,12 @@
                 public static readonly Msg It = new AddNewItem();
             }
 
+            public class RemoveItem : Msg
+            {
+                public int ItemIndex { get; private set; }
+                public static Msg It(int itemIndex) => new RemoveItem { ItemIndex = itemIndex };
+            }
+
             public class ItemChanged : Msg
             {
                 public int ItemIndex { get; private set; }
@@ -73,14 +79,13 @@
                     ? new Model(model.Items.Prep(new ToDoItem.Model(model.NewItem)), string.Empty)
                     : model;
 
+            if (msg is Msg.RemoveItem removeItem)
+                return model.With(model.Items.Without(removeItem.ItemIndex));
+
+            // propagate the rest of child mgs to child Update
             var itemChanged = msg as Msg.ItemChanged;
             if (itemChanged != null)
             {
-                // handles selected child msg on parent level, and does not propagate it to child - child is removed
-                if (itemChanged.ItemMsg is ToDoItem.Msg.Remove)
-                    return model.With(model.Items.Without(itemChanged.ItemIndex));
-
-                // propagate the rest of child mgs to child Update
                 return model.With(model.Items.With(itemChanged.ItemIndex,
                     it => it.Update(itemChanged.ItemMsg)));
             }
@@ -91,7 +96,13 @@
         public static UI<Msg> View(this Model model)
         {
             return panel(Layout.Vertical,
-                model.Items.Map((it, i) => it.View().MapMsg(Msg.ItemChanged.It(i))).ToArray().Append(
+                model.Items.Map((it, i) =>
+                    panel(Layout.Horizontal,
+                        it.View().MapMsg(Msg.ItemChanged.It(i)),
+                        button("remove", Msg.RemoveItem.It(i))
+                    )
+                ).ToArray()
+                .Append(
                 panel(Layout.Horizontal,
                     input(model.NewItem, Msg.EditNewItem.It, props(width(100))),
                     button("Add", Msg.AddNewItem.It, props(isEnabled(model.IsNewItemValid)))

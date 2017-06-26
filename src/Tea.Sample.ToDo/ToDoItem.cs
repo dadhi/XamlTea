@@ -1,3 +1,5 @@
+using static Tea.UIParts;
+
 namespace Tea.Sample.ToDo
 {
     public static class ToDoItem
@@ -26,11 +28,6 @@ namespace Tea.Sample.ToDo
                 public bool IsDone { get; private set; }
                 public static Msg It(bool isDone) { return new StateChanged { IsDone = isDone }; }
             }
-
-            public class Remove : Msg
-            {
-                public static readonly Msg It = new Remove();
-            }
         }
 
         public static Model Update(this Model model, Msg msg)
@@ -43,9 +40,7 @@ namespace Tea.Sample.ToDo
 
         public static UI<Msg> View(this Model model)
         {
-            return UIParts.panel(Layout.Horizontal,
-                UIParts.checkbox(model.Text, model.IsDone, Msg.StateChanged.It),
-                UIParts.button("remove", Msg.Remove.It));
+            return checkbox(model.Text, model.IsDone, Msg.StateChanged.It);
         }
     }
 }

@@ -64,6 +64,11 @@ namespace Tea
             return default(T);
         }
 
+        public static ImList<T> Then<T>(this T item, ImList<T> rest = null)
+        {
+            return (rest ?? ImList<T>.Empty).Prep(item);
+        }
+
         public static ImList<T> With<T>(this ImList<T> source, int index, Func<T, T> update)
         {
             if (source.IsEmpty || index < 0)
