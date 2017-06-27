@@ -231,15 +231,15 @@ namespace Tea
     }
 
     /// <summary>Basic interface for component with Update, View but without Commands, Subscriptions.</summary>
-    public interface IComponent<out TModel, TMsg> where TModel : IComponent<TModel, TMsg>
+    public interface IComponent<out TComponent, TMsg> where TComponent : IComponent<TComponent, TMsg>
     {
-        TModel Update(TMsg msg);
+        TComponent Update(TMsg msg);
         UI<TMsg> View();
     }
 
     public interface INativeUI
     {
-        void ApplyUpdates(ImList<UIUpdate> uiUpdates);
+        void Apply(ImList<UIUpdate> uiUpdates);
     }
 
     public static class UIParts
@@ -421,7 +421,7 @@ namespace Tea
                 var uiUpdates = ui.Diff(newUI);
                 uiUpdates.To(unit._, (update, _) => (update as UIUpdate.Event)?.Raise(unit._));
 
-                nativeUI.ApplyUpdates(uiUpdates);
+                nativeUI.Apply(uiUpdates);
 
                 return unit._;
             }
@@ -429,7 +429,7 @@ namespace Tea
             // Render and insert intial UI from the model
             var initialUI = component.View();
             initialUI.OnMessage = msg => UpdateViewLoop(component, initialUI, msg);
-            nativeUI.ApplyUpdates(ImList<UIUpdate>.Empty.Prep(new UIUpdate.Insert(ImList<int>.Empty, initialUI.BaseUI)));
+            nativeUI.Apply(ImList<UIUpdate>.Empty.Prep(new UIUpdate.Insert(ImList<int>.Empty, initialUI.BaseUI)));
         }
     }
 }
