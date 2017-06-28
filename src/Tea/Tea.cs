@@ -230,11 +230,49 @@ namespace Tea
         }
     }
 
-    /// <summary>Basic interface for component with Update, View but without Commands, Subscriptions.</summary>
-    public interface IComponent<out TComponent, TMsg> where TComponent : IComponent<TComponent, TMsg>
+    /// <summary>Base interface for component with View only.</summary>
+    public interface IComponent<TMsg>
+    {
+        UI<TMsg> View();
+    }
+
+    /// <summary>Base interface for component with Update, View but without Commands, Subscriptions.</summary>
+    public interface IComponent<out TComponent, TMsg> : IComponent<TMsg>
+        where TComponent : IComponent<TComponent, TMsg>
     {
         TComponent Update(TMsg msg);
-        UI<TMsg> View();
+    }
+
+    public interface IMsg<TMsgType>
+    {
+        TMsgType Type { get; }
+    }
+
+    public class ItemChanged<TItemMsg, TMsgType> : IMsg<TMsgType>
+    {
+        public TMsgType Type { get; }
+        public int ItemIndex { get; }
+        public TItemMsg ItemMsg { get; }
+
+        public ItemChanged(int itemIndex, TItemMsg itemMsg, TMsgType type)
+        {
+            Type = type;
+            ItemIndex = itemIndex;
+            ItemMsg = itemMsg;
+        }
+    }
+
+    public static class ItemChanged
+    {
+        public static UI<IMsg<TMsgType>> View<TItemMsg, TMsgType>(this IComponent<TItemMsg> item, int i, TMsgType msgType)
+        {
+            return item.View().Wrap(msg => msg.Of(i, msgType));
+        }
+
+        public static IMsg<TMsgType> Of<TItemMsg, TMsgType>(this TItemMsg itemMsg, int i, TMsgType msgType)
+        {
+            return new ItemChanged<TItemMsg, TMsgType>(i, itemMsg, msgType);
+        }
     }
 
     public interface INativeUI
@@ -309,7 +347,7 @@ namespace Tea
     {
         // todo: May be combined with the view to avoid repeating in each parent component
         /// Returns a new UI component mapping the message event using the given function.
-        public static UI<TMsg> MapMsg<TItemMsg, TMsg>(this UI<TItemMsg> source, Func<TItemMsg, TMsg> map)
+        public static UI<TMsg> Wrap<TItemMsg, TMsg>(this UI<TItemMsg> source, Func<TItemMsg, TMsg> map)
         {
             var result = new UI<TMsg>(source.BaseUI, unit.Ignore);
             source.OnMessage = msg => result.OnMessage(map(msg));

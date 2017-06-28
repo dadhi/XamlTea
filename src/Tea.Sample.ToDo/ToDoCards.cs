@@ -1,11 +1,10 @@
-using System;
 using System.Text;
 using ImTools;
 using static Tea.UIParts;
 
 namespace Tea.Sample.ToDo
 {
-    public class ToDoCards : IComponent<ToDoCards, ToDoCards.Msg>
+    public class ToDoCards : IComponent<ToDoCards, IMsg<ToDoCards.MsgType>>
     {
         public readonly ImList<ToDoList> Cards;
         public readonly ImList<ToDoCards> History;
@@ -32,32 +31,22 @@ namespace Tea.Sample.ToDo
             return s.ToString();
         }
 
-        public abstract class Msg
+        public enum MsgType { SetModel, CardChanged }
+
+        public class SetModel : IMsg<MsgType>
         {
-            public class SetModel : Msg
-            {
-                public ToDoCards Model { get; private set; }
-                public static Msg It(ToDoCards model) { return new SetModel { Model = model }; }
-            }
+            public MsgType Type => MsgType.SetModel;
 
-            public class ItemChanged : Msg
-            {
-                public int ItemIndex { get; private set; }
-                public ToDoList.Msg ItemMsg { get; private set; }
-
-                public static Func<ToDoList.Msg, Msg> It(int index)
-                {
-                    return msg => new ItemChanged { ItemIndex = index, ItemMsg = msg };
-                }
-            }
+            public ToDoCards Model { get; private set; }
+            public static IMsg<MsgType> It(ToDoCards model) { return new SetModel { Model = model }; }
         }
 
-        public ToDoCards Update(Msg msg)
+        public ToDoCards Update(IMsg<MsgType> msg)
         {
-            if (msg is Msg.SetModel setModel)
+            if (msg is SetModel setModel)
                 return setModel.Model;
 
-            if (msg is Msg.ItemChanged itemChanged)
+            if (msg is ItemChanged<IMsg<ToDoList.MsgType>, MsgType> itemChanged)
                 return new ToDoCards(
                    Cards.With(itemChanged.ItemIndex, it => it.Update(itemChanged.ItemMsg)),
                    History.Prep(this));
@@ -65,18 +54,18 @@ namespace Tea.Sample.ToDo
             return this;
         }
 
-        public UI<Msg> View()
+        public UI<IMsg<MsgType>> View()
         {
             return
                 panel(Layout.Vertical,
                     panel(Layout.Horizontal,
-                        Cards.Map((it, i) => it.View().MapMsg(Msg.ItemChanged.It(i)))
+                        Cards.Map((it, i) => it.View(i, MsgType.CardChanged))
                     ),
                     panel(Layout.Vertical,
                         History.Map(m =>
                             panel(Layout.Horizontal,
-                                button("apply", Msg.SetModel.It(m)),
-                                text<Msg>(m.ToString())))
+                                button("apply", SetModel.It(m)),
+                                text<IMsg<MsgType>>(m.ToString())))
                     )
                 );
         }

@@ -1,12 +1,11 @@
-﻿using System;
-using System.Text;
+﻿using System.Text;
 using ImTools;
 using static Tea.UIParts;
 using static Tea.Props;
 
 namespace Tea.Sample.ToDo
 {
-    public class ToDoList : IComponent<ToDoList, ToDoList.Msg>
+    public class ToDoList : IComponent<ToDoList, IMsg<ToDoList.MsgType>>
     {
         public readonly ImList<ToDoItem> Items;
         public readonly string NewItem;
@@ -42,70 +41,68 @@ namespace Tea.Sample.ToDo
             return s.ToString();
         }
 
-        public ToDoList Update(Msg msg)
+        public enum MsgType
         {
-            if (msg is Msg.EditNewItem editNewItem)
+            EditNewItem,
+            AddNewItem,
+            RemoveItem,
+            ItemChanged
+        }
+
+        public class EditNewItem : IMsg<MsgType>
+        {
+            public MsgType Type => MsgType.EditNewItem;
+            public string Text { get; private set; }
+            public static IMsg<MsgType> It(string text) => new EditNewItem { Text = text };
+        }
+
+        public class AddNewItem : IMsg<MsgType>
+        {
+            public MsgType Type => MsgType.AddNewItem;
+            public static readonly IMsg<MsgType> It = new AddNewItem();
+        }
+
+        public class RemoveItem : IMsg<MsgType>
+        {
+            public MsgType Type => MsgType.RemoveItem;
+            public int ItemIndex { get; private set; }
+            public static IMsg<MsgType> It(int itemIndex) => new RemoveItem { ItemIndex = itemIndex };
+        }
+
+        public ToDoList Update(IMsg<MsgType> msg)
+        {
+            if (msg is EditNewItem editNewItem)
                 return new ToDoList(Items, editNewItem.Text);
 
-            if (msg is Msg.AddNewItem)
+            if (msg is AddNewItem)
                 return IsNewItemValid
                     ? new ToDoList(Items.Prep(new ToDoItem(NewItem)), string.Empty)
                     : this;
 
-            if (msg is Msg.RemoveItem removeItem)
+            if (msg is RemoveItem removeItem)
                 return With(Items.Without(removeItem.ItemIndex));
 
             // propagate the rest of child mgs to child Update
-            if (msg is Msg.ItemChanged itemChanged)
+            if (msg is ItemChanged<IMsg<ToDoItem.MsgType>, MsgType> itemChanged)
                 return With(Items.With(itemChanged.ItemIndex, it => it.Update(itemChanged.ItemMsg)));
 
             return this;
         }
 
-        public UI<Msg> View()
+        public UI<IMsg<MsgType>> View()
         {
             return panel(Layout.Vertical,
                 Items.Map((it, i) =>
                     panel(Layout.Horizontal,
-                        it.View().MapMsg(Msg.ItemChanged.It(i)),
-                        button("remove", Msg.RemoveItem.It(i))
+                        it.View(i, MsgType.ItemChanged),
+                        button("remove", RemoveItem.It(i))
                     )
                 ).ToArray()
                 .Append(
                     panel(Layout.Horizontal,
-                        input(NewItem, Msg.EditNewItem.It, props(width(100))),
-                        button("Add", Msg.AddNewItem.It, props(isEnabled(IsNewItemValid)))
+                        input(NewItem, EditNewItem.It, props(width(100))),
+                        button("Add", AddNewItem.It, props(isEnabled(IsNewItemValid)))
                     )));
-        }
-
-        public abstract class Msg
-        {
-            public class EditNewItem : Msg
-            {
-                public string Text { get; private set; }
-                public static Msg It(string text) { return new EditNewItem { Text = text }; }
-            }
-
-            public class AddNewItem : Msg
-            {
-                public static readonly Msg It = new AddNewItem();
-            }
-
-            public class RemoveItem : Msg
-            {
-                public int ItemIndex { get; private set; }
-                public static Msg It(int itemIndex) => new RemoveItem { ItemIndex = itemIndex };
-            }
-
-            public class ItemChanged : Msg
-            {
-                public int ItemIndex { get; private set; }
-                public ToDoItem.Msg ItemMsg { get; private set; }
-                public static Func<ToDoItem.Msg, Msg> It(int index)
-                {
-                    return msg => new ItemChanged { ItemIndex = index, ItemMsg = msg };
-                }
-            }
         }
     }
 }

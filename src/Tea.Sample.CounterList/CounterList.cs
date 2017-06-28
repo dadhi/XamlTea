@@ -43,7 +43,7 @@ namespace Tea.Sample.CounterList
         public UI<Msg> View()
         {
             var counterViews = Counters
-                .Map((c, i) => c.View().MapMsg(msg => Msg.Modify.It(i, msg)))
+                .Map((c, i) => c.View().Wrap(msg => Msg.Modify.It(i, msg)))
                 .ToArray();
 
             return panel(Layout.Vertical, props(), new[]

@@ -2,7 +2,7 @@ using static Tea.UIParts;
 
 namespace Tea.Sample.ToDo
 {
-    public class ToDoItem : IComponent<ToDoItem, ToDoItem.Msg>
+    public class ToDoItem : IComponent<ToDoItem, IMsg<ToDoItem.MsgType>>
     {
         public readonly string Text;
         public readonly bool IsDone;
@@ -18,25 +18,28 @@ namespace Tea.Sample.ToDo
             return $"{{Text={Text},IsDone={IsDone}}}";
         }
 
-        public abstract class Msg
+        public enum MsgType
         {
-            public class StateChanged : Msg
-            {
-                public bool IsDone { get; private set; }
-                public static Msg It(bool isDone) { return new StateChanged { IsDone = isDone }; }
-            }
+            StateChanged
         }
 
-        public ToDoItem Update(Msg msg)
+        public class StateChanged : IMsg<MsgType>
         {
-            if (msg is Msg.StateChanged stateChanged)
+            public MsgType Type => MsgType.StateChanged;
+            public bool IsDone { get; private set; }
+            public static IMsg<MsgType> It(bool isDone) => new StateChanged { IsDone = isDone };
+        }
+
+        public ToDoItem Update(IMsg<MsgType> msg)
+        {
+            if (msg is StateChanged stateChanged)
                 return new ToDoItem(Text, stateChanged.IsDone);
             return this;
         }
 
-        public UI<Msg> View()
+        public UI<IMsg<MsgType>> View()
         {
-            return checkbox(Text, IsDone, Msg.StateChanged.It);
+            return checkbox(Text, IsDone, StateChanged.It);
         }
     }
 }
