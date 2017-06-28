@@ -4,22 +4,18 @@ using static Tea.UIParts;
 
 namespace Tea.Sample.ToDo
 {
-    public class ToDoCards : IComponent<ToDoCards, IMsg<ToDoCards.MsgType>>
+    public class ToDoCards : IComponent<ToDoCards, IMsg<ToDoCards.Msg>>
     {
         public readonly ImList<ToDoList> Cards;
-        public readonly ImList<ToDoCards> History;
 
-        public ToDoCards(ImList<ToDoList> cards, ImList<ToDoCards> history)
+        public ToDoCards(ImList<ToDoList> cards)
         {
             Cards = cards;
-            History = history;
         }
 
         public static ToDoCards Init()
         {
-            return new ToDoCards(
-                ImList<ToDoList>.Empty.Prep(ToDoList.Init()).Prep(ToDoList.Init()),
-                ImList<ToDoCards>.Empty);
+            return new ToDoCards(ImList<ToDoList>.Empty.Prep(ToDoList.Init()).Prep(ToDoList.Init()));
         }
 
         public override string ToString()
@@ -31,42 +27,29 @@ namespace Tea.Sample.ToDo
             return s.ToString();
         }
 
-        public enum MsgType { SetModel, CardChanged }
+        public enum Msg { SetModel, CardChanged }
 
-        public class SetModel : IMsg<MsgType>
+        public class SetModel : IMsg<Msg>
         {
-            public MsgType Type => MsgType.SetModel;
+            public Msg Type => Msg.SetModel;
 
             public ToDoCards Model { get; private set; }
-            public static IMsg<MsgType> It(ToDoCards model) { return new SetModel { Model = model }; }
+            public static IMsg<Msg> It(ToDoCards model) { return new SetModel { Model = model }; }
         }
 
-        public ToDoCards Update(IMsg<MsgType> msg)
+        public ToDoCards Update(IMsg<Msg> msg)
         {
-            if (msg is SetModel setModel)
-                return setModel.Model;
-
-            if (msg is ItemChanged<IMsg<ToDoList.MsgType>, MsgType> itemChanged)
+            if (msg is ItemChanged<IMsg<ToDoList.Msg>, Msg> itemChanged)
                 return new ToDoCards(
-                   Cards.With(itemChanged.ItemIndex, it => it.Update(itemChanged.ItemMsg)),
-                   History.Prep(this));
-
+                    Cards.With(itemChanged.Index, it => it.Update(itemChanged.Msg)));
             return this;
         }
 
-        public UI<IMsg<MsgType>> View()
+        public UI<IMsg<Msg>> View()
         {
             return
-                panel(Layout.Vertical,
-                    panel(Layout.Horizontal,
-                        Cards.Map((it, i) => it.View(i, MsgType.CardChanged))
-                    ),
-                    panel(Layout.Vertical,
-                        History.Map(m =>
-                            panel(Layout.Horizontal,
-                                button("apply", SetModel.It(m)),
-                                text<IMsg<MsgType>>(m.ToString())))
-                    )
+                panel(Layout.Horizontal,
+                    Cards.Map((it, i) => it.View(i, Msg.CardChanged))
                 );
         }
     }

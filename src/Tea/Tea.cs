@@ -251,14 +251,14 @@ namespace Tea
     public class ItemChanged<TItemMsg, TMsgType> : IMsg<TMsgType>
     {
         public TMsgType Type { get; }
-        public int ItemIndex { get; }
-        public TItemMsg ItemMsg { get; }
+        public int Index { get; }
+        public TItemMsg Msg { get; }
 
-        public ItemChanged(int itemIndex, TItemMsg itemMsg, TMsgType type)
+        public ItemChanged(int index, TItemMsg msg, TMsgType type)
         {
             Type = type;
-            ItemIndex = itemIndex;
-            ItemMsg = itemMsg;
+            Index = index;
+            Msg = msg;
         }
     }
 
@@ -335,9 +335,9 @@ namespace Tea
 
             var ui = new UI<TMsg>(new UI.Panel(props, layout, uiParts), unit.Ignore);
 
-            Func<TMsg, unit> raise = msg => ui.OnMessage(msg);
+            unit Raise(TMsg msg) => ui.OnMessage(msg);
             for (var i = 0; i < parts.Length; i++)
-                parts[i].OnMessage = raise;
+                parts[i].OnMessage = Raise;
 
             return ui;
         }

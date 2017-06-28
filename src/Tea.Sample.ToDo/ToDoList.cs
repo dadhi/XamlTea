@@ -5,7 +5,7 @@ using static Tea.Props;
 
 namespace Tea.Sample.ToDo
 {
-    public class ToDoList : IComponent<ToDoList, IMsg<ToDoList.MsgType>>
+    public class ToDoList : IComponent<ToDoList, IMsg<ToDoList.Msg>>
     {
         public readonly ImList<ToDoItem> Items;
         public readonly string NewItem;
@@ -41,7 +41,7 @@ namespace Tea.Sample.ToDo
             return s.ToString();
         }
 
-        public enum MsgType
+        public enum Msg
         {
             EditNewItem,
             AddNewItem,
@@ -49,27 +49,27 @@ namespace Tea.Sample.ToDo
             ItemChanged
         }
 
-        public class EditNewItem : IMsg<MsgType>
+        public class EditNewItem : IMsg<Msg>
         {
-            public MsgType Type => MsgType.EditNewItem;
+            public Msg Type => Msg.EditNewItem;
             public string Text { get; private set; }
-            public static IMsg<MsgType> It(string text) => new EditNewItem { Text = text };
+            public static IMsg<Msg> It(string text) => new EditNewItem { Text = text };
         }
 
-        public class AddNewItem : IMsg<MsgType>
+        public class AddNewItem : IMsg<Msg>
         {
-            public MsgType Type => MsgType.AddNewItem;
-            public static readonly IMsg<MsgType> It = new AddNewItem();
+            public Msg Type => Msg.AddNewItem;
+            public static readonly IMsg<Msg> It = new AddNewItem();
         }
 
-        public class RemoveItem : IMsg<MsgType>
+        public class RemoveItem : IMsg<Msg>
         {
-            public MsgType Type => MsgType.RemoveItem;
+            public Msg Type => Msg.RemoveItem;
             public int ItemIndex { get; private set; }
-            public static IMsg<MsgType> It(int itemIndex) => new RemoveItem { ItemIndex = itemIndex };
+            public static IMsg<Msg> It(int itemIndex) => new RemoveItem { ItemIndex = itemIndex };
         }
 
-        public ToDoList Update(IMsg<MsgType> msg)
+        public ToDoList Update(IMsg<Msg> msg)
         {
             if (msg is EditNewItem editNewItem)
                 return new ToDoList(Items, editNewItem.Text);
@@ -83,18 +83,18 @@ namespace Tea.Sample.ToDo
                 return With(Items.Without(removeItem.ItemIndex));
 
             // propagate the rest of child mgs to child Update
-            if (msg is ItemChanged<IMsg<ToDoItem.MsgType>, MsgType> itemChanged)
-                return With(Items.With(itemChanged.ItemIndex, it => it.Update(itemChanged.ItemMsg)));
+            if (msg is ItemChanged<IMsg<ToDoItem.Msg>, Msg> itemChanged)
+                return With(Items.With(itemChanged.Index, it => it.Update(itemChanged.Msg)));
 
             return this;
         }
 
-        public UI<IMsg<MsgType>> View()
+        public UI<IMsg<Msg>> View()
         {
             return panel(Layout.Vertical,
                 Items.Map((it, i) =>
                     panel(Layout.Horizontal,
-                        it.View(i, MsgType.ItemChanged),
+                        it.View(i, Msg.ItemChanged),
                         button("remove", RemoveItem.It(i))
                     )
                 ).ToArray()

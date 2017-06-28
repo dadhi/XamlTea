@@ -15,7 +15,8 @@ namespace Team.Sample.ToDo.Wpf
             var ui = Wpf.CreateUI(window);
 
             //UIApp.Run(ui, ToDoList.Init());
-            UIApp.Run(ui, ToDoCards.Init());
+            //UIApp.Run(ui, ToDoCards.Init());
+            UIApp.Run(ui, ToDoApp.Init());
 
             new Application().Run(window);
         }
