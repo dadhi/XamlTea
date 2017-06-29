@@ -242,21 +242,18 @@ namespace Tea
     {
         TComponent Update(TMsg msg);
     }
-
-    public interface IMsg<TMsgType>
-    {
-        TMsgType Type { get; }
-    }
+    
+    /// <summary>Marker interface to allow boilerplate removal.</summary>
+    /// <typeparam name="TMsg"></typeparam>
+    public interface IMsg<TMsg> {}
 
     public class ItemChanged<TItemMsg, TMsgType> : IMsg<TMsgType>
     {
-        public TMsgType Type { get; }
         public int Index { get; }
         public TItemMsg Msg { get; }
 
-        public ItemChanged(int index, TItemMsg msg, TMsgType type)
+        public ItemChanged(int index, TItemMsg msg)
         {
-            Type = type;
             Index = index;
             Msg = msg;
         }
@@ -264,14 +261,14 @@ namespace Tea
 
     public static class ItemChanged
     {
-        public static UI<IMsg<TMsgType>> View<TItemMsg, TMsgType>(this IComponent<TItemMsg> item, int i, TMsgType msgType)
+        public static UI<IMsg<TMsgType>> View<TItemMsg, TMsgType>(this IComponent<TItemMsg> item, int i)
         {
-            return item.View().Wrap(msg => msg.Of(i, msgType));
+            return item.View().Wrap(msg => msg.Of<TItemMsg, TMsgType>(i));
         }
 
-        public static IMsg<TMsgType> Of<TItemMsg, TMsgType>(this TItemMsg itemMsg, int i, TMsgType msgType)
+        public static IMsg<TMsgType> Of<TItemMsg, TMsgType>(this TItemMsg itemMsg, int i)
         {
-            return new ItemChanged<TItemMsg, TMsgType>(i, itemMsg, msgType);
+            return new ItemChanged<TItemMsg, TMsgType>(i, itemMsg);
         }
     }
 

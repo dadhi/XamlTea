@@ -4,7 +4,7 @@ using static Tea.UIParts;
 
 namespace Tea.Sample.ToDo
 {
-    public class ToDoCards : IComponent<ToDoCards, IMsg<ToDoCards.Msg>>
+    public class ToDoCards : IComponent<ToDoCards, IMsg<ToDoCards>>
     {
         public readonly ImList<ToDoList> Cards;
 
@@ -27,29 +27,25 @@ namespace Tea.Sample.ToDo
             return s.ToString();
         }
 
-        public enum Msg { SetModel, CardChanged }
-
-        public class SetModel : IMsg<Msg>
+        public class SetModel : IMsg<ToDoCards>
         {
-            public Msg Type => Msg.SetModel;
-
             public ToDoCards Model { get; private set; }
-            public static IMsg<Msg> It(ToDoCards model) { return new SetModel { Model = model }; }
+            public static IMsg<ToDoCards> It(ToDoCards model) { return new SetModel { Model = model }; }
         }
 
-        public ToDoCards Update(IMsg<Msg> msg)
+        public ToDoCards Update(IMsg<ToDoCards> msg)
         {
-            if (msg is ItemChanged<IMsg<ToDoList.Msg>, Msg> itemChanged)
+            if (msg is ItemChanged<IMsg<ToDoList>, ToDoCards> itemChanged)
                 return new ToDoCards(
                     Cards.With(itemChanged.Index, it => it.Update(itemChanged.Msg)));
             return this;
         }
 
-        public UI<IMsg<Msg>> View()
+        public UI<IMsg<ToDoCards>> View()
         {
             return
                 panel(Layout.Horizontal,
-                    Cards.Map((it, i) => it.View(i, Msg.CardChanged))
+                    Cards.Map((it, i) => it.View<IMsg<ToDoList>, ToDoCards>(i))
                 );
         }
     }

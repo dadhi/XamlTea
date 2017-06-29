@@ -3,7 +3,7 @@ using static Tea.UIParts;
 
 namespace Tea.Sample.ToDo
 {
-    public class ToDoApp : IComponent<ToDoApp, IMsg<ToDoApp.Msg>>
+    public class ToDoApp : IComponent<ToDoApp, IMsg<ToDoApp>>
     {
         public readonly ImList<ToDoCards> History;
         public readonly ToDoCards Model;
@@ -19,39 +19,32 @@ namespace Tea.Sample.ToDo
             return new ToDoApp(ImList<ToDoCards>.Empty, ToDoCards.Init());
         }
 
-        public enum Msg
+        public class ApplyModelFromHistory : IMsg<ToDoApp>
         {
-            ApplyModelFromHistory,
-            CardsChanged
-        }
-
-        public class ApplyModelFromHistory : IMsg<Msg>
-        {
-            public Msg Type => Msg.ApplyModelFromHistory;
             public ToDoCards Model { get; private set; }
-            public static IMsg<Msg> It(ToDoCards model) => new ApplyModelFromHistory { Model = model };
+            public static IMsg<ToDoApp> It(ToDoCards model) => new ApplyModelFromHistory { Model = model };
         }
 
-        public UI<IMsg<Msg>> View()
+        public UI<IMsg<ToDoApp>> View()
         {
             return
                 panel(Layout.Vertical,
-                    Model.View(0, Msg.CardsChanged),
+                    Model.View<IMsg<ToDoCards>, ToDoApp>(0),
                     panel(Layout.Vertical,
                         History.Map(model =>
                             panel(Layout.Horizontal,
                                 button("apply", ApplyModelFromHistory.It(model)),
-                                text<IMsg<Msg>>(model.ToString())))
+                                text<IMsg<ToDoApp>>(model.ToString())))
                     )
                 );
         }
 
-        public ToDoApp Update(IMsg<Msg> msg)
+        public ToDoApp Update(IMsg<ToDoApp> msg)
         {
             if (msg is ApplyModelFromHistory applyModel)
                 return new ToDoApp(History, applyModel.Model);
 
-            if (msg is ItemChanged<IMsg<ToDoCards.Msg>, Msg> modelChanged)
+            if (msg is ItemChanged<IMsg<ToDoCards>, ToDoApp> modelChanged)
                 return new ToDoApp(History.Prep(Model), Model.Update(modelChanged.Msg));
 
             return this;
