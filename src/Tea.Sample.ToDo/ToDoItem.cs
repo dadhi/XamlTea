@@ -2,7 +2,7 @@ using static Tea.UIParts;
 
 namespace Tea.Sample.ToDo
 {
-    public class ToDoItem : IComponent<ToDoItem, IMsg<ToDoItem>>
+    public class ToDoItem : IComponent<ToDoItem>
     {
         public readonly string Text;
         public readonly bool IsDone;
@@ -13,7 +13,10 @@ namespace Tea.Sample.ToDo
             IsDone = isDone;
         }
 
-        public override string ToString() => $"{{Text={Text},IsDone={IsDone}}}";
+        public override string ToString()
+        {
+            return $"{{Text={Text},IsDone={IsDone}}}";
+        }
 
         public class StateChanged : IMsg<ToDoItem>
         {

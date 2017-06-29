@@ -6,10 +6,12 @@ namespace Tea
 {
     public static class Event
     {
-        public static Ref<Ref<Func<TMsg, unit>>> Of<TMsg>(Func<TMsg, unit> evt)
+        public static Ref<Ref<Action<TMsg>>> Of<TMsg>(Action<TMsg> send)
         {
-            return Ref.Of(Ref.Of(evt));
+            return Ref.Of(Ref.Of(send));
         }
+
+        public static void Empty<TMsg>(TMsg msg) { }
     }
 
     public enum Layout { Horizontal, Vertical }
@@ -109,9 +111,9 @@ namespace Tea
 
         public class Input : UI
         {
-            public readonly Ref<Ref<Func<string, unit>>> Changed;
+            public readonly Ref<Ref<Action<string>>> Changed;
 
-            public Input(ImList<Prop> props, string text, Ref<Ref<Func<string, unit>>> changed) : base(props, text)
+            public Input(ImList<Prop> props, string text, Ref<Ref<Action<string>>> changed) : base(props, text)
             {
                 Changed = changed;
             }
@@ -119,9 +121,9 @@ namespace Tea
 
         public class Button : UI
         {
-            public readonly Ref<Ref<Func<unit, unit>>> Clicked;
+            public readonly Ref<Ref<Action<unit>>> Clicked;
 
-            public Button(ImList<Prop> props, string text, Ref<Ref<Func<unit, unit>>> clicked) : base(props, text)
+            public Button(ImList<Prop> props, string text, Ref<Ref<Action<unit>>> clicked) : base(props, text)
             {
                 Clicked = clicked;
             }
@@ -130,9 +132,10 @@ namespace Tea
         public class CheckBox : UI
         {
             public readonly bool IsChecked;
-            public readonly Ref<Ref<Func<bool, unit>>> Changed;
+            public readonly Ref<Ref<Action<bool>>> Changed;
 
-            public CheckBox(ImList<Prop> props, string text, bool isChecked, Ref<Ref<Func<bool, unit>>> changed) : base(props, text)
+            public CheckBox(ImList<Prop> props, string text, bool isChecked, Ref<Ref<Action<bool>>> changed) 
+                : base(props, text)
             {
                 IsChecked = isChecked;
                 Changed = changed;
@@ -199,7 +202,6 @@ namespace Tea
         public class Remove : UIUpdate
         {
             public readonly ImList<int> Path;
-
             public Remove(ImList<int> path)
             {
                 Path = path;
@@ -208,11 +210,10 @@ namespace Tea
 
         public class Event : UIUpdate
         {
-            public readonly Func<unit, unit> Raise;
-
-            public Event(Func<unit, unit> raise)
+            public readonly Action<unit> Send;
+            public Event(Action<unit> send)
             {
-                Raise = raise;
+                Send = send;
             }
         }
     }
@@ -221,38 +222,34 @@ namespace Tea
     public class UI<TMsg>
     {
         public readonly UI BaseUI;
-        public Func<TMsg, unit> OnMessage;
+        public Action<TMsg> Send;
 
-        public UI(UI baseUi, Func<TMsg, unit> onMessage)
+        public UI(UI baseUi, Action<TMsg> send)
         {
             BaseUI = baseUi;
-            OnMessage = onMessage;
+            Send = send;
         }
     }
 
-    /// <summary>Base interface for component with View only.</summary>
-    public interface IComponent<TMsg>
-    {
-        UI<TMsg> View();
-    }
-
     /// <summary>Base interface for component with Update, View but without Commands, Subscriptions.</summary>
-    public interface IComponent<out TComponent, TMsg> : IComponent<TMsg>
-        where TComponent : IComponent<TComponent, TMsg>
+    public interface IComponent<T> where T : IComponent<T>
     {
-        TComponent Update(TMsg msg);
+        T Update(IMsg<T> msg);
+
+        UI<IMsg<T>> View();
     }
     
     /// <summary>Marker interface to allow boilerplate removal.</summary>
-    /// <typeparam name="TMsg"></typeparam>
-    public interface IMsg<TMsg> {}
+    /// <typeparam name="T">Component type</typeparam>
+    // ReSharper disable once UnusedTypeParameter
+    public interface IMsg<T> {}
 
-    public class ItemChanged<TItemMsg, TMsgType> : IMsg<TMsgType>
+    public class ItemChanged<TItem, THolder> : IMsg<THolder>
     {
         public int Index { get; }
-        public TItemMsg Msg { get; }
+        public IMsg<TItem> Msg { get; }
 
-        public ItemChanged(int index, TItemMsg msg)
+        public ItemChanged(int index, IMsg<TItem> msg)
         {
             Index = index;
             Msg = msg;
@@ -261,14 +258,16 @@ namespace Tea
 
     public static class ItemChanged
     {
-        public static UI<IMsg<TMsgType>> View<TItemMsg, TMsgType>(this IComponent<TItemMsg> item, int i)
+        public static UI<IMsg<THolder>> View<TItem, THolder>(this TItem item, int i)
+            where TItem : IComponent<TItem>
+            where THolder : IComponent<THolder>
         {
-            return item.View().Wrap(msg => msg.Of<TItemMsg, TMsgType>(i));
+            return item.View().Wrap(msg => msg.Of<TItem, THolder>(i));
         }
 
-        public static IMsg<TMsgType> Of<TItemMsg, TMsgType>(this TItemMsg itemMsg, int i)
+        public static IMsg<THolder> Of<TItem, THolder>(this IMsg<TItem> itemMsg, int i)
         {
-            return new ItemChanged<TItemMsg, TMsgType>(i, itemMsg);
+            return new ItemChanged<TItem, THolder>(i, itemMsg);
         }
     }
 
@@ -281,33 +280,33 @@ namespace Tea
     {
         public static UI<TMsg> text<TMsg>(string text, ImList<Prop> props = null)
         {
-            return new UI<TMsg>(new UI.Text(props, text), unit.Ignore);
+            return new UI<TMsg>(new UI.Text(props, text), Event.Empty);
         }
 
         public static UI<TMsg> input<TMsg>(string text, Func<string, TMsg> changed, 
             ImList<Prop> props = null)
         {
-            var ev = Event.Of<string>(unit.Ignore);
-            var ui = new UI<TMsg>(new UI.Input(props, text, ev), unit.Ignore);
-            ev.Value.Swap(s => ui.OnMessage(changed(s)));
+            var ev = Event.Of<string>(Event.Empty);
+            var ui = new UI<TMsg>(new UI.Input(props, text, ev), Event.Empty);
+            ev.Value.Swap(s => ui.Send(changed(s)));
             return ui;
         }
 
         public static UI<TMsg> button<TMsg>(string text, TMsg clicked, 
             ImList<Prop> props = null)
         {
-            var ev = Event.Of<unit>(unit.Ignore);
-            var ui = new UI<TMsg>(new UI.Button(props, text, ev), unit.Ignore);
-            ev.Value.Swap(_ => ui.OnMessage(clicked));
+            var ev = Event.Of<unit>(Event.Empty);
+            var ui = new UI<TMsg>(new UI.Button(props, text, ev), Event.Empty);
+            ev.Value.Swap(_ => ui.Send(clicked));
             return ui;
         }
 
         public static UI<TMsg> checkbox<TMsg>(string text, bool isChecked, Func<bool, TMsg> changed, 
             ImList<Prop> props = null)
         {
-            var ev = Event.Of<bool>(unit.Ignore);
-            var ui = new UI<TMsg>(new UI.CheckBox(props, text, isChecked, ev), unit.Ignore);
-            ev.Value.Swap(check => ui.OnMessage(changed(check)));
+            var ev = Event.Of<bool>(Event.Empty);
+            var ui = new UI<TMsg>(new UI.CheckBox(props, text, isChecked, ev), Event.Empty);
+            ev.Value.Swap(check => ui.Send(changed(check)));
             return ui;
         }
 
@@ -330,11 +329,11 @@ namespace Tea
             for (var i = parts.Length - 1; i >= 0; i--)
                 uiParts = uiParts.Prep(parts[i].BaseUI);
 
-            var ui = new UI<TMsg>(new UI.Panel(props, layout, uiParts), unit.Ignore);
+            var ui = new UI<TMsg>(new UI.Panel(props, layout, uiParts), Event.Empty);
 
-            unit Raise(TMsg msg) => ui.OnMessage(msg);
+            void Send(TMsg msg) => ui.Send(msg);
             for (var i = 0; i < parts.Length; i++)
-                parts[i].OnMessage = Raise;
+                parts[i].Send = Send;
 
             return ui;
         }
@@ -344,10 +343,10 @@ namespace Tea
     {
         // todo: May be combined with the view to avoid repeating in each parent component
         /// Returns a new UI component mapping the message event using the given function.
-        public static UI<TMsg> Wrap<TItemMsg, TMsg>(this UI<TItemMsg> source, Func<TItemMsg, TMsg> map)
+        public static UI<THolderMsg> Wrap<TItemMsg, THolderMsg>(this UI<TItemMsg> source, Func<TItemMsg, THolderMsg> map)
         {
-            var result = new UI<TMsg>(source.BaseUI, unit.Ignore);
-            source.OnMessage = msg => result.OnMessage(map(msg));
+            var result = new UI<THolderMsg>(source.BaseUI, Event.Empty);
+            source.Send = msg => result.Send(map(msg));
             return result;
         }
 
@@ -430,40 +429,41 @@ namespace Tea
         }
 
         // Point first ref to second ref value.value
-        private static Func<unit, unit> UpdateEvent<T>(Ref<Ref<T>> ref1, Ref<Ref<T>> ref2)
+        private static Action<unit> UpdateEvent<T>(Ref<Ref<T>> evt1, Ref<Ref<T>> evt2)
             where T : class
         {
             return _ =>
             {
                 //let ev = !e1 in ev:=!(!e2); e2:=ev
-                var ref1Value = ref1.Value;
-                ref1Value.Swap(ref2.Value.Value);
-                ref2.Swap(ref1Value);
-                return unit._;
+                var ref1Value = evt1.Value;
+                ref1Value.Swap(evt2.Value.Value);
+                evt2.Swap(ref1Value);
             };
         }
 
-        // Runs a UI application given a native UI.
-        public static void Run<TMsg, TModel>(INativeUI nativeUI, IComponent<TModel, TMsg> component) 
-            where TModel : IComponent<TModel, TMsg>
+        /// <summary>Runs application/component loop of Init->View->Update->View->Update->View... </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="nativeUI"></param>
+        /// <param name="component"></param>
+        public static void Run<T>(INativeUI nativeUI, IComponent<T> component) where T : IComponent<T>
         {
-            unit UpdateViewLoop(IComponent<TModel, TMsg> model, UI<TMsg> ui, TMsg message)
+            void UpdateViewLoop(IComponent<T> model, UI<IMsg<T>> ui, IMsg<T> message)
             {
                 var newModel = model.Update(message);
                 var newUI = newModel.View();
-                newUI.OnMessage = msg => UpdateViewLoop(newModel, newUI, msg);
+                newUI.Send = msg => UpdateViewLoop(newModel, newUI, msg);
 
                 var uiUpdates = ui.Diff(newUI);
-                uiUpdates.To(unit._, (update, _) => (update as UIUpdate.Event)?.Raise(unit._));
+
+                for (var items = uiUpdates; !items.IsEmpty; items = items.Tail)
+                    (items.Head as UIUpdate.Event)?.Send(unit._);
 
                 nativeUI.Apply(uiUpdates);
-
-                return unit._;
             }
 
             // Render and insert intial UI from the model
             var initialUI = component.View();
-            initialUI.OnMessage = msg => UpdateViewLoop(component, initialUI, msg);
+            initialUI.Send = msg => UpdateViewLoop(component, initialUI, msg);
             nativeUI.Apply(ImList<UIUpdate>.Empty.Prep(new UIUpdate.Insert(ImList<int>.Empty, initialUI.BaseUI)));
         }
     }

@@ -5,7 +5,7 @@ using static Tea.Props;
 
 namespace Tea.Sample.ToDo
 {
-    public class ToDoList : IComponent<ToDoList, IMsg<ToDoList>>
+    public class ToDoList : IComponent<ToDoList>
     {
         public readonly ImList<ToDoItem> Items;
         public readonly string NewItem;
@@ -72,7 +72,7 @@ namespace Tea.Sample.ToDo
                 return With(Items.Without(removeItem.ItemIndex));
 
             // propagate the rest of child mgs to child Update
-            if (msg is ItemChanged<IMsg<ToDoItem>, ToDoList> itemChanged)
+            if (msg is ItemChanged<ToDoItem, ToDoList> itemChanged)
                 return With(Items.With(itemChanged.Index, it => it.Update(itemChanged.Msg)));
 
             return this;
@@ -83,7 +83,7 @@ namespace Tea.Sample.ToDo
             return panel(Layout.Vertical,
                 Items.Map((it, i) =>
                     panel(Layout.Horizontal,
-                        it.View<IMsg<ToDoItem>, ToDoList>(i),
+                        it.View<ToDoItem, ToDoList>(i),
                         button("remove", RemoveItem.It(i))
                     )
                 ).ToArray()

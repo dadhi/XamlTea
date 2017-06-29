@@ -4,7 +4,7 @@ using static Tea.UIParts;
 
 namespace Tea.Sample.ToDo
 {
-    public class ToDoCards : IComponent<ToDoCards, IMsg<ToDoCards>>
+    public class ToDoCards : IComponent<ToDoCards>
     {
         public readonly ImList<ToDoList> Cards;
 
@@ -15,7 +15,9 @@ namespace Tea.Sample.ToDo
 
         public static ToDoCards Init()
         {
-            return new ToDoCards(ImList<ToDoList>.Empty.Prep(ToDoList.Init()).Prep(ToDoList.Init()));
+            return new ToDoCards(ImList<ToDoList>.Empty
+                .Prep(ToDoList.Init())
+                .Prep(ToDoList.Init()));
         }
 
         public override string ToString()
@@ -27,17 +29,11 @@ namespace Tea.Sample.ToDo
             return s.ToString();
         }
 
-        public class SetModel : IMsg<ToDoCards>
-        {
-            public ToDoCards Model { get; private set; }
-            public static IMsg<ToDoCards> It(ToDoCards model) { return new SetModel { Model = model }; }
-        }
-
         public ToDoCards Update(IMsg<ToDoCards> msg)
         {
-            if (msg is ItemChanged<IMsg<ToDoList>, ToDoCards> itemChanged)
+            if (msg is ItemChanged<ToDoList, ToDoCards> card)
                 return new ToDoCards(
-                    Cards.With(itemChanged.Index, it => it.Update(itemChanged.Msg)));
+                    Cards.With(card.Index, it => it.Update(card.Msg)));
             return this;
         }
 
@@ -45,7 +41,7 @@ namespace Tea.Sample.ToDo
         {
             return
                 panel(Layout.Horizontal,
-                    Cards.Map((it, i) => it.View<IMsg<ToDoList>, ToDoCards>(i))
+                    Cards.Map(ItemChanged.View<ToDoList, ToDoCards>)
                 );
         }
     }

@@ -6,9 +6,6 @@ namespace Tea
     public sealed class unit
     {
         public static readonly unit _ = new unit();
-
-        public static unit Ignore<T>(T it) { return _; }
-
         private unit() { }
     }
 

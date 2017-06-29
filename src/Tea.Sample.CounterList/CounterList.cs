@@ -4,18 +4,12 @@ using static Tea.Props;
 
 namespace Tea.Sample.CounterList
 {
-    public sealed class CounterList : IComponent<CounterList, CounterList.Msg>
+    public sealed class CounterList : IComponent<CounterList>
     {
-        public abstract class Msg
+        public abstract class Msg : IMsg<CounterList>
         {
-            public sealed class Insert : Msg { public static readonly Msg It = new Insert(); }
-            public sealed class Remove : Msg { public static readonly Msg It = new Remove(); }
-            public sealed class Modify : Msg
-            {
-                public int Index { get; private set; }
-                public Counter.Msg CounterMsg { get; private set; }
-                public static Msg It(int index, Counter.Msg msg) { return new Modify { Index = index, CounterMsg = msg }; }
-            }
+            public sealed class Insert : Msg { public static readonly IMsg<CounterList> It = new Insert(); }
+            public sealed class Remove : Msg { public static readonly IMsg<CounterList> It = new Remove(); }
         }
 
         public static readonly CounterList Initial = new CounterList(ImList<Counter>.Empty);
@@ -23,7 +17,7 @@ namespace Tea.Sample.CounterList
         public readonly ImList<Counter> Counters;
         public CounterList(ImList<Counter> counters) { Counters = counters; }
 
-        public CounterList Update(Msg msg)
+        public CounterList Update(IMsg<CounterList> msg)
         {
             if (msg is Msg.Insert)
                 return new CounterList(Counters.Prep(new Counter(0)));
@@ -34,22 +28,23 @@ namespace Tea.Sample.CounterList
             if (msg is Msg.Remove)
                 return new CounterList(Counters.Tail);
 
-            if (msg is Msg.Modify modify)
-                return new CounterList(Counters.With(modify.Index, c => c.Update(modify.CounterMsg)));
+            if (msg is ItemChanged<Counter, CounterList> modify)
+                return new CounterList(Counters.With(modify.Index, c => c.Update(modify.Msg)));
 
             return this;
         }
 
-        public UI<Msg> View()
+        public UI<IMsg<CounterList>> View()
         {
             var counterViews = Counters
-                .Map((c, i) => c.View().Wrap(msg => Msg.Modify.It(i, msg)))
+                .Map((c, i) => c.View<Counter, CounterList>(i))
                 .ToArray();
 
             return panel(Layout.Vertical, props(), new[]
-            { button("Add", Msg.Insert.It)
-                    , button("Remove", Msg.Remove.It)
-                }.Append(counterViews));
+            {
+                button("Add", Msg.Insert.It),
+                button("Remove", Msg.Remove.It)
+            }.Append(counterViews));
         }
     }
 }

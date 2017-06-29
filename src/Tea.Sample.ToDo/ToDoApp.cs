@@ -3,7 +3,7 @@ using static Tea.UIParts;
 
 namespace Tea.Sample.ToDo
 {
-    public class ToDoApp : IComponent<ToDoApp, IMsg<ToDoApp>>
+    public class ToDoApp : IComponent<ToDoApp>
     {
         public readonly ImList<ToDoCards> History;
         public readonly ToDoCards Model;
@@ -29,7 +29,7 @@ namespace Tea.Sample.ToDo
         {
             return
                 panel(Layout.Vertical,
-                    Model.View<IMsg<ToDoCards>, ToDoApp>(0),
+                    Model.View<ToDoCards, ToDoApp>(0),
                     panel(Layout.Vertical,
                         History.Map(model =>
                             panel(Layout.Horizontal,
@@ -44,7 +44,7 @@ namespace Tea.Sample.ToDo
             if (msg is ApplyModelFromHistory applyModel)
                 return new ToDoApp(History, applyModel.Model);
 
-            if (msg is ItemChanged<IMsg<ToDoCards>, ToDoApp> modelChanged)
+            if (msg is ItemChanged<ToDoCards, ToDoApp> modelChanged)
                 return new ToDoApp(History.Prep(Model), Model.Update(modelChanged.Msg));
 
             return this;
