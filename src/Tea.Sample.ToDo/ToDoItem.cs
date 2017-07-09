@@ -18,22 +18,34 @@ namespace Tea.Sample.ToDo
             return $"{{Text={Text},IsDone={IsDone}}}";
         }
 
-        public class StateChanged : IMsg<ToDoItem>
+        public class IsDoneChanged : IMsg<ToDoItem>
         {
             public bool IsDone { get; private set; }
-            public static IMsg<ToDoItem> It(bool isDone) => new StateChanged { IsDone = isDone };
+            public static IMsg<ToDoItem> It(bool isDone) => new IsDoneChanged { IsDone = isDone };
+        }
+
+        public class TextChanged : IMsg<ToDoItem>
+        {
+            public string Text { get; private set; }
+            public static IMsg<ToDoItem> It(string text) => new TextChanged { Text = text };
         }
 
         public ToDoItem Update(IMsg<ToDoItem> msg)
         {
-            if (msg is StateChanged stateChanged)
-                return new ToDoItem(Text, stateChanged.IsDone);
+            if (msg is IsDoneChanged isDoneChanged)
+                return new ToDoItem(Text, isDoneChanged.IsDone);
+            if (msg is TextChanged textChanged)
+                return new ToDoItem(textChanged.Text, IsDone);
             return this;
         }
 
         public UI<IMsg<ToDoItem>> View()
         {
-            return checkbox(Text, IsDone, StateChanged.It);
+            return IsDone 
+                ? checkbox(Text, IsDone, IsDoneChanged.It)
+                : panel(Layout.Horizontal,
+                    checkbox(string.Empty, IsDone, IsDoneChanged.It),
+                    input(Text, TextChanged.It));
         }
     }
 }

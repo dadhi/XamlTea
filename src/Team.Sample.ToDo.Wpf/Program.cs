@@ -18,7 +18,8 @@ namespace Team.Sample.ToDo.Wpf
             //UIApp.Run(ui, ToDoCards.Init());
             UIApp.Run(ui, ToDoApp.Init());
 
-            new Application().Run(window);
+            var app = new Application();
+            app.Run(window);
         }
     }
 }
