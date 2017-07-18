@@ -10,7 +10,8 @@ Adapted to C# from this [Great Elm F# project](https://github.com/AnthonyLloyd/E
 ## Plan
 
 - [x] Make CounterList sample work
-- [ ] Optimize Diff implementation
-- [ ] Add ToDo sample. It is the most ;-)
-- [ ] Add Xamarin.Forms implementation
+- [x] Add ToDo sample. It is the most ;-)
 - [ ] Extend Tea with commands and subscriptions from  @AnthonyLloyd's [Event F# project](https://github.com/AnthonyLloyd/Event)
+- [ ] Optimize Diff implementation
+- [ ] Add Xamarin.Forms implementation
+- [ ] Better UI
