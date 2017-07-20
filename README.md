@@ -12,6 +12,8 @@ Adapted to C# from this [Great Elm F# project](https://github.com/AnthonyLloyd/E
 - [x] Make CounterList sample work
 - [x] Add ToDo sample. It is the most ;-)
 - [ ] Extend Tea with commands and subscriptions from  @AnthonyLloyd's [Event F# project](https://github.com/AnthonyLloyd/Event)
+- [ ] Integrate the Tea component in an unabtrusive way, preferrable as UserControl
 - [ ] Optimize Diff implementation
 - [ ] Add Xamarin.Forms implementation
+- [ ] Figure out style and layout, may be similar to [Elm Style.elements](https://www.youtube.com/watch?v=NYb2GDWMIm0) 
 - [ ] Better UI
