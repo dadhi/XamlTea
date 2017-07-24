@@ -80,16 +80,13 @@ namespace Tea.Sample.ToDo
 
         public UI<IMsg<ToDoList>> View()
         {
-            return panel(Layout.Vertical,
-                Items.Map((it, i) =>
-                    panel(Layout.Horizontal,
-                        it.View<ToDoItem, ToDoList>(i),
+            return column(Items.Map((it, i) =>
+                    row(it.View<ToDoItem, ToDoList>(i),
                         button("remove", RemoveItem.It(i))
                     )
                 ).ToArray()
                 .Append(
-                    panel(Layout.Horizontal,
-                        input(NewItem, EditNewItem.It, props(width(100))),
+                    row(input(NewItem, EditNewItem.It, props(width(100))),
                         button("Add", AddNewItem.It, props(isEnabled(IsNewItemValid)))
                     )));
         }

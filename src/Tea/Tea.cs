@@ -26,7 +26,7 @@ namespace Tea
             {
                 var other = obj as Of<TValue>;
                 return other != null && Equals(other.Value, Value);
-            } 
+            }
         }
 
         public class Width : Of<int> { public Width(int value) : base(value) { } }
@@ -50,8 +50,8 @@ namespace Tea
         public static Prop isEnabled(bool enabled) => enabled ? Prop.IsEnabled.Enabled : Prop.IsEnabled.Disabled;
         public static Prop tootip(string text) => new Prop.Tooltip(text);
 
-        public static TProp Get<TProp>(this ImList<Prop> props, TProp defaultProp = null) 
-            where TProp : Prop => 
+        public static TProp Get<TProp>(this ImList<Prop> props, TProp defaultProp = null)
+            where TProp : Prop =>
             props.GetOrDefault(p => p is TProp) as TProp ?? defaultProp;
 
         public static ImList<Pair<Prop, Prop>> Diff(this ImList<Prop> it, ImList<Prop> other)
@@ -98,8 +98,8 @@ namespace Tea
             Content = content;
         }
 
-        public virtual bool Equals(UI other) => 
-            other != null && 
+        public virtual bool Equals(UI other) =>
+            other != null &&
             other.GetType() == GetType() &&
             other.Content == Content &&
             Props.Diff(other.Props).IsEmpty;
@@ -134,14 +134,14 @@ namespace Tea
             public readonly bool IsChecked;
             public readonly Ref<Ref<Action<bool>>> Changed;
 
-            public CheckBox(ImList<Prop> props, string text, bool isChecked, Ref<Ref<Action<bool>>> changed) 
+            public CheckBox(ImList<Prop> props, string text, bool isChecked, Ref<Ref<Action<bool>>> changed)
                 : base(props, text)
             {
                 IsChecked = isChecked;
                 Changed = changed;
             }
 
-            public override bool Equals(UI other) => 
+            public override bool Equals(UI other) =>
                 base.Equals(other) && ((CheckBox)other).IsChecked == IsChecked;
         }
 
@@ -238,11 +238,11 @@ namespace Tea
 
         UI<IMsg<T>> View();
     }
-    
+
     /// <summary>Marker interface to allow boilerplate removal.</summary>
     /// <typeparam name="T">Component type</typeparam>
     // ReSharper disable once UnusedTypeParameter
-    public interface IMsg<T> {}
+    public interface IMsg<T> { }
 
     public class ItemChanged<TItem, THolder> : IMsg<THolder>
     {
@@ -283,7 +283,7 @@ namespace Tea
             return new UI<TMsg>(new UI.Text(props, text), Event.Empty);
         }
 
-        public static UI<TMsg> input<TMsg>(string text, Func<string, TMsg> changed, 
+        public static UI<TMsg> input<TMsg>(string text, Func<string, TMsg> changed,
             ImList<Prop> props = null)
         {
             var ev = Event.Of<string>(Event.Empty);
@@ -292,7 +292,7 @@ namespace Tea
             return ui;
         }
 
-        public static UI<TMsg> button<TMsg>(string text, TMsg clicked, 
+        public static UI<TMsg> button<TMsg>(string text, TMsg clicked,
             ImList<Prop> props = null)
         {
             var ev = Event.Of<unit>(Event.Empty);
@@ -301,7 +301,7 @@ namespace Tea
             return ui;
         }
 
-        public static UI<TMsg> checkbox<TMsg>(string text, bool isChecked, Func<bool, TMsg> changed, 
+        public static UI<TMsg> checkbox<TMsg>(string text, bool isChecked, Func<bool, TMsg> changed,
             ImList<Prop> props = null)
         {
             var ev = Event.Of<bool>(Event.Empty);
@@ -310,18 +310,28 @@ namespace Tea
             return ui;
         }
 
-        public static UI<TMsg> panel<TMsg>(Layout layout, params UI<TMsg>[] parts)
+        public static UI<TMsg> row<TMsg>(params UI<TMsg>[] parts)
         {
-            return panel(layout, null, parts);
+            return panel(Layout.Horizontal, null, parts);
         }
 
-        public static UI<TMsg> panel<TMsg>(Layout layout, ImList<UI<TMsg>> parts)
+        public static UI<TMsg> row<TMsg>(ImList<UI<TMsg>> parts)
         {
-            return panel(layout, null, parts.ToArray());
+            return panel(Layout.Horizontal, null, parts.ToArray());
         }
 
-        public static UI<TMsg> panel<TMsg>(Layout layout, 
-            ImList<Prop> props = null, params UI<TMsg>[] parts)
+        public static UI<TMsg> column<TMsg>(params UI<TMsg>[] parts)
+        {
+            return panel(Layout.Vertical, null, parts);
+        }
+
+        public static UI<TMsg> column<TMsg>(ImList<UI<TMsg>> parts)
+        {
+            return panel(Layout.Vertical, null, parts.ToArray());
+        }
+
+        public static UI<TMsg> panel<TMsg>(Layout layout,
+            ImList<Prop> props, params UI<TMsg>[] parts)
         {
             var uiParts = ImList<UI>.Empty;
 

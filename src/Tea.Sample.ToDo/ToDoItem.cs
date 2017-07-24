@@ -43,7 +43,7 @@ namespace Tea.Sample.ToDo
         {
             return IsDone 
                 ? checkbox(Text, IsDone, IsDoneChanged.It)
-                : panel(Layout.Horizontal,
+                : row(
                     checkbox(string.Empty, IsDone, IsDoneChanged.It),
                     input(Text, TextChanged.It));
         }

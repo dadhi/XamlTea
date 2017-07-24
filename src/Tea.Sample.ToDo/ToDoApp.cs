@@ -28,13 +28,13 @@ namespace Tea.Sample.ToDo
         public UI<IMsg<ToDoApp>> View()
         {
             return
-                panel(Layout.Vertical,
+                column(
                     Model.View<ToDoCards, ToDoApp>(0),
-                    panel(Layout.Vertical,
-                        History.Map(model =>
-                            panel(Layout.Horizontal,
-                                button("apply", ApplyModelFromHistory.It(model)),
-                                text<IMsg<ToDoApp>>(model.ToString())))
+                    column(History.Map(model => 
+                        row(
+                            button("apply", ApplyModelFromHistory.It(model)),
+                            text<IMsg<ToDoApp>>(model.ToString()))
+                        )
                     )
                 );
         }

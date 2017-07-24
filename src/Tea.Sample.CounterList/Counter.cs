@@ -26,10 +26,10 @@ namespace Tea.Sample.CounterList
 
         public UI<IMsg<Counter>> View()
         {
-            return panel(Layout.Horizontal
-                , button("+", Msg.Increment)
-                , button("-", Msg.Decrement)
-                , text<IMsg<Counter>>(Count.ToString()));
+            return row(
+                button("+", Msg.Increment), 
+                button("-", Msg.Decrement), 
+                text<IMsg<Counter>>(Count.ToString()));
         }
     }
 }
