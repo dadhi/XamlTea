@@ -89,6 +89,15 @@ namespace Tea.Sample.ToDo
                     row(input(NewItem, EditNewItem.It, props(width(100))),
                         button("Add", AddNewItem.It, props(isEnabled(IsNewItemValid)))
                     )));
+            /*
+            // todo: experiment with more clean view
+            return 
+                column(Items.Map((it, i) =>
+                    row(
+                        View.Item(it, i),
+                        button("remove", RemoveItem.It(i))))) + 
+                    row ...
+             */
         }
     }
 }
