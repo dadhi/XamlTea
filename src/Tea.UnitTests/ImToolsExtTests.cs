@@ -1,5 +1,4 @@
-﻿using System;
-using ImTools;
+﻿using ImTools;
 using NUnit.Framework;
 
 namespace Tea.UnitTests

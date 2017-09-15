@@ -256,18 +256,30 @@ namespace Tea
         }
     }
 
-    public static class ItemChanged
+    public static class Item
     {
-        public static UI<IMsg<THolder>> View<TItem, THolder>(this TItem item, int i)
+        public static UI<IMsg<THolder>> View<TItem, THolder>(this TItem item, int itemIndex)
             where TItem : IComponent<TItem>
             where THolder : IComponent<THolder>
         {
-            return item.View().Wrap(msg => msg.Of<TItem, THolder>(i));
+            return item.View().MapMsg(msg => msg.Lift<TItem, THolder>(itemIndex));
         }
 
-        public static IMsg<THolder> Of<TItem, THolder>(this IMsg<TItem> itemMsg, int i)
+        public static UI<IMsg<THolder>> View<TItem, THolder>(this TItem item, int itemIndex, THolder _)
+            where TItem : IComponent<TItem>
         {
-            return new ItemChanged<TItem, THolder>(i, itemMsg);
+            return item.View().MapMsg(msg => msg.Lift<TItem, THolder>(itemIndex));
+        }
+
+        public static UI<IMsg<THolder>> View<TItem, THolder>(this TItem item, THolder _)
+            where TItem : IComponent<TItem>
+        {
+            return item.View().MapMsg(msg => msg.Lift<TItem, THolder>(0));
+        }
+
+        public static IMsg<THolder> Lift<TItem, THolder>(this IMsg<TItem> itemMsg, int itemIndex)
+        {
+            return new ItemChanged<TItem, THolder>(itemIndex, itemMsg);
         }
     }
 
@@ -353,7 +365,7 @@ namespace Tea
     {
         // todo: May be combined with the view to avoid repeating in each parent component
         /// Returns a new UI component mapping the message event using the given function.
-        public static UI<THolderMsg> Wrap<TItemMsg, THolderMsg>(this UI<TItemMsg> source, Func<TItemMsg, THolderMsg> map)
+        public static UI<THolderMsg> MapMsg<TItemMsg, THolderMsg>(this UI<TItemMsg> source, Func<TItemMsg, THolderMsg> map)
         {
             var result = new UI<THolderMsg>(source.BaseUI, Event.Empty);
             source.Send = msg => result.Send(map(msg));

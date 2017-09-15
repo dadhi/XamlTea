@@ -6,12 +6,12 @@ namespace Tea.Sample.ToDo
     public class ToDoApp : IComponent<ToDoApp>
     {
         public readonly ImList<ToDoCards> History;
-        public readonly ToDoCards Model;
+        public readonly ToDoCards Cards;
 
-        public ToDoApp(ImList<ToDoCards> history, ToDoCards model)
+        public ToDoApp(ImList<ToDoCards> history, ToDoCards cards)
         {
             History = history;
-            Model = model;
+            Cards = cards;
         }
 
         public static ToDoApp Init()
@@ -29,7 +29,7 @@ namespace Tea.Sample.ToDo
         {
             return
                 column(
-                    Model.View<ToDoCards, ToDoApp>(0),
+                    Cards.View(this),
                     column(History.Map(model => 
                         row(
                             button("apply", ApplyModelFromHistory.It(model)),
@@ -45,7 +45,7 @@ namespace Tea.Sample.ToDo
                 return new ToDoApp(History, applyModel.Model);
 
             if (msg is ItemChanged<ToDoCards, ToDoApp> modelChanged)
-                return new ToDoApp(History.Prep(Model), Model.Update(modelChanged.Msg));
+                return new ToDoApp(History.Prep(Cards), Cards.Update(modelChanged.Msg));
 
             return this;
         }
