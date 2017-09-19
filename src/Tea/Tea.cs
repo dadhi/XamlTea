@@ -256,31 +256,19 @@ namespace Tea
         }
     }
 
-    public static class Item
+    public static class Component
     {
-        public static UI<IMsg<THolder>> View<TItem, THolder>(this TItem item, int itemIndex)
+        public static UI<IMsg<THolder>> ViewIn<TItem, THolder>(this TItem item, int itemIndex)
             where TItem : IComponent<TItem>
-            where THolder : IComponent<THolder>
-        {
-            return item.View().MapMsg(msg => msg.Lift<TItem, THolder>(itemIndex));
-        }
+            where THolder : IComponent<THolder> 
+            => item.View().MapMsg(msg => msg.Lift<TItem, THolder>(itemIndex));
 
-        public static UI<IMsg<THolder>> View<TItem, THolder>(this TItem item, int itemIndex, THolder _)
-            where TItem : IComponent<TItem>
-        {
-            return item.View().MapMsg(msg => msg.Lift<TItem, THolder>(itemIndex));
-        }
-
-        public static UI<IMsg<THolder>> View<TItem, THolder>(this TItem item, THolder _)
-            where TItem : IComponent<TItem>
-        {
-            return item.View().MapMsg(msg => msg.Lift<TItem, THolder>(0));
-        }
+        public static UI<IMsg<THolder>> ViewIn<TItem, THolder>(this TItem item, THolder hereOnlyForTypeInference, int itemIndex = 0)
+            where TItem : IComponent<TItem> 
+            => item.View().MapMsg(msg => msg.Lift<TItem, THolder>(itemIndex));
 
         public static IMsg<THolder> Lift<TItem, THolder>(this IMsg<TItem> itemMsg, int itemIndex)
-        {
-            return new ItemChanged<TItem, THolder>(itemIndex, itemMsg);
-        }
+            => new ItemChanged<TItem, THolder>(itemIndex, itemMsg);
     }
 
     public interface INativeUI

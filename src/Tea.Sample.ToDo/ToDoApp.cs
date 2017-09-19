@@ -29,7 +29,7 @@ namespace Tea.Sample.ToDo
         {
             return
                 column(
-                    Cards.View(this),
+                    Cards.ViewIn(this),
                     column(History.Map(model => 
                         row(
                             button("apply", ApplyModelFromHistory.It(model)),

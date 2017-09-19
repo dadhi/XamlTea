@@ -83,7 +83,7 @@ namespace Tea.Sample.ToDo
             return
                 column(
                     column(Items.Map((item, i) =>
-                        row(item.View(i, this),
+                        row(item.ViewIn(this, i),
                             button("remove", RemoveItem.It(i))))),
                     row(input(NewItem, EditNewItem.It, props(width(100))),
                         button("Add", AddNewItem.It, props(isEnabled(IsNewItemValid)))));

@@ -39,7 +39,7 @@ namespace Tea.Sample.ToDo
 
         public UI<IMsg<ToDoCards>> View()
         {
-            return row(Cards.Map(Item.View<ToDoList, ToDoCards>));
+            return row(Cards.Map(Component.ViewIn<ToDoList, ToDoCards>));
         }
     }
 }
