@@ -2,7 +2,7 @@
 
 ## What
 
-[The Elm Architecture](https://guide.elm-lang.org/architecture/) for building C# WPF and XAML applications.. in future!
+[The Elm Architecture](https://guide.elm-lang.org/architecture/) for building WPF and XAML applications.. in future.
 
 Adapted from this [great Elm F# project](https://github.com/AnthonyLloyd/Elm).
 
