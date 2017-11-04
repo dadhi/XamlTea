@@ -1,11 +1,12 @@
-# Tea
+# XamlTea
 
 ## What
 
-[The Elm Architecture](https://guide.elm-lang.org/architecture/) for building .NET UI applications: WPF and more to come..
+[The Elm Architecture](https://guide.elm-lang.org/architecture/) for building C# WPF and XAML applications.. in future!
 
+Adapted from this [great Elm F# project](https://github.com/AnthonyLloyd/Elm).
 
-Adapted to C# from this [Great Elm F# project](https://github.com/AnthonyLloyd/Elm).
+__Currently it is proof-of-concept. Please, help me to make it a real thing.__
 
 ## Plan
 
