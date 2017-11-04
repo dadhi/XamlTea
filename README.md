@@ -6,7 +6,7 @@
 
 Adapted from this [great Elm F# project](https://github.com/AnthonyLloyd/Elm).
 
-__Currently it is proof-of-concept. Please, help me to make it a real thing.__
+__Currently a proof-of-concept. Please, help me to make it a real thing.__
 
 ## Progress
 
