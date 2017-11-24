@@ -1,6 +1,6 @@
 ﻿using ImTools;
 using static Tea.UIParts;
-using static Tea.Props;
+using static Tea.Styles;
 
 namespace Tea.Sample.CounterList
 {
@@ -20,7 +20,7 @@ namespace Tea.Sample.CounterList
         public CounterList Update(IMsg<CounterList> msg)
         {
             if (msg is Msg.Insert)
-                return new CounterList(Counters.Prep(new Counter(0)));
+                return new CounterList(Counters.Prepend(new Counter(0)));
 
             if (Counters.IsEmpty)
                 return this;
@@ -40,11 +40,12 @@ namespace Tea.Sample.CounterList
                 .Map((c, i) => c.ViewIn<Counter, CounterList>(i))
                 .ToArray();
 
-            return panel(Layout.Vertical, props(), new[]
+            return panel(Layout.Vertical, style(), new[]
             {
                 button("Add", Msg.Insert.It),
                 button("Remove", Msg.Remove.It)
-            }.Append(counterViews));
+            }
+            .Append(counterViews));
         }
     }
 }

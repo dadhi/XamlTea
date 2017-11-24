@@ -22,6 +22,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 
+using System.Diagnostics;
+
 namespace ImTools
 {
     using System;
@@ -629,10 +631,11 @@ namespace ImTools
         /// <summary>The rest of values or Empty if list has a single value.</summary>
         public readonly ImList<T> Tail;
 
+        // todo: Move to ImTools
         /// <summary>Prepends new value and returns new list.</summary>
         /// <param name="head">New first value.</param>
         /// <returns>List with the new head.</returns>
-        public ImList<T> Prep(T head)
+        public ImList<T> Prepend(T head)
         {
             return new ImList<T>(head, this);
         }
@@ -645,6 +648,23 @@ namespace ImTools
                 yield break;
             for (var list = this; !list.IsEmpty; list = list.Tail)
                 yield return list.Head;
+        }
+
+        /// <summary>Sring representation for debugging purposes</summary>
+        public override string ToString()
+        {
+            if (IsEmpty)
+                return "<empty>";
+
+            var s = Head?.ToString();
+            if (!Tail.IsEmpty)
+                s += "," + Tail.Head?.ToString();
+            if (!Tail.Tail.IsEmpty)
+                s += "," + Tail.Tail.Head?.ToString();
+            if (!Tail.Tail.Tail.IsEmpty)
+                s += ",..";
+
+            return s;
         }
 
         #region Implementation
@@ -663,6 +683,13 @@ namespace ImTools
     /// <summary>Extension methods providing basic operations on a list.</summary>
     public static class ImList
     {
+        /// <summary>Do some action on each element</summary>
+        public static void Do<T>(this ImList<T> source, Action<T> action)
+        {
+            for (; !source.IsEmpty; source = source.Tail)
+                action(source.Head);
+        }
+
         /// <summary>This a basically a Fold function, to address needs in Map, Filter, Reduce.</summary>
         /// <typeparam name="T">Type of list item.</typeparam>
         /// <typeparam name="R">Type of result.</typeparam>
@@ -704,7 +731,7 @@ namespace ImTools
         {
             if (source.IsEmpty || source.Tail.IsEmpty)
                 return source;
-            return source.To(ImList<T>.Empty, (it, _) => _.Prep(it));
+            return source.To(ImList<T>.Empty, (it, result) => result.Prepend(it));
         }
 
         /// <summary>Maps the items from the first list to the result list.</summary>
@@ -714,7 +741,7 @@ namespace ImTools
         /// <returns>result list.</returns>
         public static ImList<R> Map<T, R>(this ImList<T> source, Func<T, R> map)
         {
-            return source.To(ImList<R>.Empty, (it, _) => _.Prep(map(it))).Reverse();
+            return source.To(ImList<R>.Empty, (it, result) => result.Prepend(map(it))).Reverse();
         }
 
         /// <summary>Maps the items from the first list to the result list with item index.</summary>
@@ -724,7 +751,7 @@ namespace ImTools
         /// <returns>result list.</returns>
         public static ImList<R> Map<T, R>(this ImList<T> source, Func<T, int, R> map)
         {
-            return source.To(ImList<R>.Empty, (it, i, _) => _.Prep(map(it, i))).Reverse();
+            return source.To(ImList<R>.Empty, (it, i, _) => _.Prepend(map(it, i))).Reverse();
         }
 
         /// <summary>Copies list to array.</summary> 

@@ -1,18 +1,18 @@
 ﻿using System;
 using System.Windows;
+using Tea.Wpf;
 
 namespace Tea.Sample.CounterList.Wpf
 {
-    using static Tea.Wpf.Wpf;
-
     public static class Program
     {
         [STAThread]
         public static void Main()
         {
             var window = new Window { Title = "Tea Sample" };
-            var ui = CreateUI(window);
-            UIApp.Run(ui, CounterList.Initial);
+
+            UIApp.Run(WpfUI.Init(window), CounterList.Initial);
+
             new Application().Run(window);
         }
     }

@@ -31,13 +31,13 @@ namespace Tea
 
     public static class ImToolsExt
     {
-        public static ImList<T> List<T>(params T[] values)
+        public static ImList<T> AsList<T>(this T[] values)
         {
             if (values.IsNullOrEmpty())
                 return ImList<T>.Empty;
             var result = ImList<T>.Empty;
-            for (var i = 0; i < values.Length; i++)
-                result = result.Prep(values[i]);
+            for (var i = values.Length - 1; i >= 0; i--)
+                result = result.Prepend(values[i]);
             return result;
         }
 
@@ -61,33 +61,41 @@ namespace Tea
             return default(T);
         }
 
+        public static ImList<T> Prepend<T>(this ImList<T> source, ImList<T> prefix)
+        {
+            if (source.IsEmpty)
+                return prefix;
+            for (; !prefix.IsEmpty; prefix = prefix.Tail)
+                source = source.Prepend(prefix.Head);
+            return source;
+        }
+
         public static ImList<T> With<T>(this ImList<T> source, int index, Func<T, T> update)
         {
             if (source.IsEmpty || index < 0)
                 return source;
 
             if (index == 0)
-                return source.Tail.Prep(update(source.Head));
+                return source.Tail.Prepend(update(source.Head));
 
             // start from index 1
-            var beginning = ImList<T>.Empty.Prep(source.Head);
-            var remaining = source.Tail;
-            for (var i = 1; !remaining.IsEmpty; remaining = remaining.Tail, ++i)
+            var reversedPrefix = ImList<T>.Empty.Prepend(source.Head);
+            var suffix = source.Tail;
+            for (var i = 1; !suffix.IsEmpty; suffix = suffix.Tail, ++i)
             {
                 if (i == index)
                 {
-                    var value = remaining.Head;
-                    var updatedValue = update(value);
-                    if (ReferenceEquals(updatedValue, value) || Equals(updatedValue, value))
-                        return source; // if item did not change, return the source
-
-                    remaining = remaining.Tail.Prep(updatedValue);
-                    return beginning.To(remaining, (it, _) => _.Prep(it));
+                    var sourceItem = suffix.Head;
+                    var updatedItem = update(sourceItem);
+                    if (ReferenceEquals(updatedItem, sourceItem) || 
+                        updatedItem != null && updatedItem.Equals(sourceItem))
+                        return source; // if item did not change, return the original source
+                    return suffix.Tail.Prepend(updatedItem).Prepend(reversedPrefix);
                 }
-                beginning = beginning.Prep(remaining.Head);
+                reversedPrefix = reversedPrefix.Prepend(suffix.Head);
             }
 
-            // if index is ouside of the bounds, return original array
+            // if index is outside of the bounds, return original array
             return source;
         }
 
@@ -100,16 +108,16 @@ namespace Tea
                 return source.Tail;
 
             // start from index 1
-            var beginning = ImList<T>.Empty.Prep(source.Head);
+            var reversedPrefix = ImList<T>.Empty.Prepend(source.Head);
             var remaining = source.Tail;
             for (var i = 1; !remaining.IsEmpty; remaining = remaining.Tail, ++i)
             {
                 if (i == index)
-                    return beginning.To(remaining.Tail, (it, _) => _.Prep(it));
-                beginning = beginning.Prep(remaining.Head);
+                    return remaining.Tail.Prepend(reversedPrefix);
+                reversedPrefix = reversedPrefix.Prepend(remaining.Head);
             }
 
-            // if index is ouside of the bounds, return original array
+            // if index is outside of the bounds, return original array
             return source;
         }
     }

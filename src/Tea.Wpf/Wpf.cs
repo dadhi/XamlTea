@@ -5,31 +5,64 @@ using ImTools;
 
 namespace Tea.Wpf
 {
-    public static class Wpf
+    public class WpfUI : INativeUI
     {
-        public static INativeUI CreateUI(ContentControl root)
+        /// <summary>Initializes the UI bound to provided content control.</summary>
+        public static INativeUI Init(ContentControl root) => new WpfUI(root);
+
+        private readonly ContentControl _rootControl;
+        private WpfUI(ContentControl rootControl) => _rootControl = rootControl;
+
+        /// <summary>Applies the updates.</summary>
+        public void Apply(ImList<UIUpdate> uiUpdates) =>
+            uiUpdates.Do(update => _rootControl.Dispatcher.Invoke(() => Apply(update, _rootControl)));
+
+        private static void Apply(UIUpdate uiUpdate, ContentControl root)
         {
-            return new WpfUI(Update, root);
+            var path = uiUpdate.Path;
+            switch (uiUpdate)
+            {
+                case UIUpdate.Insert insert:
+                    if (path.IsEmpty)
+                        root.Content = CreateUI(insert.UI);
+                    else
+                        Locate(path.Tail, root).Children.Insert(path.Head, CreateUI(insert.UI));
+                    break;
+
+                case UIUpdate.Update update:
+                    var elem = path.IsEmpty
+                        ? (UIElement)root.Content
+                        : Locate(path.Tail, root).Children[path.Head];
+
+                    Update(update.UI, elem);
+                    break;
+
+                case UIUpdate.Replace replace:
+                    if (path.IsEmpty)
+                        root.Content = CreateUI(replace.UI);
+                    else
+                    {
+                        var children = Locate(path.Tail, root).Children;
+                        children.RemoveAt(path.Head);
+                        children.Insert(path.Head, CreateUI(replace.UI));
+                    }
+                    break;
+
+                case UIUpdate.Remove _:
+                    if (!path.IsEmpty)
+                        Locate(path.Tail, root).Children.RemoveAt(path.Head);
+                    break;
+
+                case UIUpdate.Event _:
+                    // do nothing for events because they are raised before applying update in main MVU loop
+                    break;
+            }
         }
 
-        private class WpfUI : INativeUI
-        {
-            private readonly Func<UIUpdate, ContentControl, unit> _apply;
-            private readonly ContentControl _root;
-
-            public WpfUI(Func<UIUpdate, ContentControl, unit> apply, ContentControl root)
-            {
-                _apply = apply;
-                _root = root;
-            }
-
-            public void Apply(ImList<UIUpdate> uiUpdates)
-            {
-                uiUpdates.To(unit._, (update, _) => _apply(update, _root));
-            }
-        }
-
-        private static readonly Thickness _defaultMargin = new Thickness(2);
+        private static Panel Locate(ImList<int> path, ContentControl contentControl) =>
+            path.IsEmpty
+                ? (Panel)contentControl.Content
+                : (Panel)Locate(path.Tail, contentControl).Children[path.Head];
 
         private static UIElement CreateUI(UI ui)
         {
@@ -39,162 +72,102 @@ namespace Tea.Wpf
             if (ui is UI.Text)
             {
                 var elem = new Label { Content = ui.Content };
-                elem.Margin = _defaultMargin;
-                ApplyProps(elem, ui.Props);
-                return elem;
+                return WithStyles(elem, ui.Styles);
             }
 
-            var input = ui as UI.Input;
-            if (input != null)
+            if (ui is UI.Input input)
             {
                 var elem = new TextBox { Text = input.Content };
-                elem.Margin = _defaultMargin;
-                ApplyProps(elem, ui.Props);
                 var ev = input.Changed.Value;
                 elem.TextChanged += (sender, _) => ev.Value(((TextBox)sender).Text);
-                return elem;
+                return WithStyles(elem, ui.Styles);
             }
 
-            var button = ui as UI.Button;
-            if (button != null)
+            if (ui is UI.Button button)
             {
                 var elem = new Button { Content = button.Content };
-                elem.Margin = _defaultMargin;
-                ApplyProps(elem, ui.Props);
+
                 var ev = button.Clicked.Value;
                 elem.Click += (sender, _) => ev.Value(unit._);
-                return elem;
+
+                return WithStyles(elem, ui.Styles);
             }
 
-            var div = ui as UI.Panel;
-            if (div != null)
+            if (ui is UI.Panel panel)
             {
-                var parts = div.Parts.Map(CreateUI);
-                var orientation = div.Layout == Layout.Vertical ? Orientation.Vertical : Orientation.Horizontal;
+                var orientation = panel.Layout == Layout.Vertical ? Orientation.Vertical : Orientation.Horizontal;
                 var elem = new StackPanel { Orientation = orientation };
-                elem.Margin = _defaultMargin;
-                ApplyProps(elem, ui.Props);
-                parts.To(0, (p, _) => elem.Children.Add(p));
-                return elem;
+
+                var parts = panel.Parts.Map(CreateUI);
+                parts.Do(p => elem.Children.Add(p));
+
+                return WithStyles(elem, ui.Styles);
             }
 
-            var check = ui as UI.CheckBox;
-            if (check != null)
+            if (ui is UI.CheckBox check)
             {
-                var elem = new CheckBox { Content = check.Content, IsChecked = check.IsChecked };
-                elem.Margin = _defaultMargin;
-                ApplyProps(elem, ui.Props);
+                var elem = new CheckBox
+                {
+                    Content = check.Content,
+                    IsChecked = check.IsChecked,
+                };
+                
                 var ev = check.Changed.Value;
                 elem.Checked += (sender, _) => ev.Value(true);
                 elem.Unchecked += (sender, _) => ev.Value(false);
-                return elem;
+
+                return WithStyles(elem, ui.Styles);
             }
 
             throw new NotSupportedException("The type of UI is not supported: " + ui.GetType());
         }
 
-        private static void ApplyProps(FrameworkElement elem, ImList<Prop> props)
+        private static readonly Thickness DefaultMargin = new Thickness(2);
+
+        private static FrameworkElement WithStyles(FrameworkElement elem, ImList<Style> styles)
         {
-            props.To(unit._, (prop, _) =>
+            elem.Margin = DefaultMargin;
+            styles.Do(style =>
             {
-                if (prop is Prop.Width)
-                    elem.Width = ((Prop.Width)prop).Value;
-                else if (prop is Prop.Height)
-                    elem.Height = ((Prop.Height)prop).Value;
-                else if (prop is Prop.IsEnabled)
-                    elem.IsEnabled = ((Prop.IsEnabled)prop).Value;
-                else if (prop is Prop.Tooltip)
-                    elem.ToolTip = ((Prop.Tooltip)prop).Value;
-                return _;
+                if (style is Style.Width width)
+                    elem.Width = width.Value;
+                else if (style is Style.Height height)
+                    elem.Height = height.Value;
+                else if (style is Style.IsEnabled isEnabled)
+                    elem.IsEnabled = isEnabled.Value;
+                else if (style is Style.Tooltip tooltip)
+                    elem.ToolTip = tooltip.Value;
             });
-
+            return elem;
         }
 
-        private static unit UpdateUI(UI ui, UIElement elem)
+        private static void Update(UI ui, UIElement elem)
         {
-            if (ui is UI.Text)
+            switch (ui)
             {
-                var label = (Label)elem;
-                label.Content = ui.Content;
-            }
-            else if (ui is UI.Input)
-            {
-                var textBox = (TextBox)elem;
-                textBox.Text = ui.Content;
-            }
-            else if (ui is UI.Button)
-            {
-                var button = (Button)elem;
-                button.Content = ui.Content;
-            }
-            else if (ui is UI.CheckBox)
-            {
-                var checkBox = (CheckBox)elem;
-                checkBox.Content = ui.Content;
-                checkBox.IsChecked = ((UI.CheckBox)ui).IsChecked;
-            }
+                case UI.Text textUI:
+                    var label = (Label)elem;
+                    label.Content = textUI.Content;
+                    break;
 
-            ApplyProps((FrameworkElement)elem, ui.Props);
+                case UI.Input inputUI:
+                    var textBox = (TextBox)elem;
+                    textBox.Text = inputUI.Content;
+                    break;
 
-            return unit._;
-        }
+                case UI.Button buttonUI:
+                    var button = (Button)elem;
+                    button.Content = buttonUI.Content;
+                    break;
 
-        private static Panel LocatePanel(ImList<int> path, ContentControl root)
-        {
-            if (path.IsEmpty)
-                return root.Content as Panel;
-            var panel = LocatePanel(path.Tail, root);
-            return (Panel)panel.Children[path.Head];
-        }
-
-        private static unit Update(UIUpdate update, ContentControl root)
-        {
-            var insertUI = update as UIUpdate.Insert;
-            if (insertUI != null)
-            {
-                var path = insertUI.Path;
-                if (path.IsEmpty)
-                    root.Content = CreateUI(insertUI.UI);
-                else
-                    LocatePanel(path.Tail, root).Children.Insert(path.Head, CreateUI(insertUI.UI));
-                return unit._;
+                case UI.CheckBox checkBoxUI:
+                    var checkBox = (CheckBox)elem;
+                    checkBox.Content = checkBoxUI.Content;
+                    checkBox.IsChecked = checkBoxUI.IsChecked;
+                    break;
             }
 
-            var updateUI = update as UIUpdate.Update;
-            if (updateUI != null)
-            {
-                var path = updateUI.Path;
-                var elem = path.IsEmpty
-                    ? (UIElement)root.Content
-                    : LocatePanel(path.Tail, root).Children[path.Head];
-                return UpdateUI(updateUI.UI, elem);
-            }
-
-            var replaceUI = update as UIUpdate.Replace;
-            if (replaceUI != null)
-            {
-                var path = replaceUI.Path;
-                if (path.IsEmpty)
-                    root.Content = CreateUI(replaceUI.UI);
-                else
-                {
-                    var children = LocatePanel(path.Tail, root).Children;
-                    children.RemoveAt(path.Head);
-                    children.Insert(path.Head, CreateUI(replaceUI.UI));
-                }
-                return unit._;
-            }
-
-            var removeUI = update as UIUpdate.Remove;
-            if (removeUI != null)
-            {
-                var path = removeUI.Path;
-                if (!path.IsEmpty)
-                    LocatePanel(path.Tail, root).Children.RemoveAt(path.Head);
-            }
-
-            // Skip event
-            return unit._;
+            WithStyles((FrameworkElement)elem, ui.Styles);
         }
     }
 }

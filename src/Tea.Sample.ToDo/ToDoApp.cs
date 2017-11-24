@@ -45,7 +45,7 @@ namespace Tea.Sample.ToDo
                 return new ToDoApp(History, applyModel.Model);
 
             if (msg is ItemChanged<ToDoCards, ToDoApp> modelChanged)
-                return new ToDoApp(History.Prep(Cards), Cards.Update(modelChanged.Msg));
+                return new ToDoApp(History.Prepend(Cards), Cards.Update(modelChanged.Msg));
 
             return this;
         }

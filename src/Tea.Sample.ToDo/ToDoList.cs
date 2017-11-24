@@ -1,7 +1,7 @@
 ﻿using System.Text;
 using ImTools;
 using static Tea.UIParts;
-using static Tea.Props;
+using static Tea.Styles;
 
 namespace Tea.Sample.ToDo
 {
@@ -18,18 +18,14 @@ namespace Tea.Sample.ToDo
             IsNewItemValid = !string.IsNullOrWhiteSpace(newItem);
         }
 
-        public static ToDoList Init()
-        {
-            return new ToDoList(ImList<ToDoItem>.Empty
-                    .Prep(new ToDoItem("foo"))
-                    .Prep(new ToDoItem("bar", true)),
-                string.Empty);
-        }
+        public static ToDoList Init() => 
+            new ToDoList(ImList<ToDoItem>.Empty
+                .Prepend(new ToDoItem("foo"))
+                .Prepend(new ToDoItem("bar", true)),
+            string.Empty);
 
-        public ToDoList With(ImList<ToDoItem> items)
-        {
-            return new ToDoList(items, NewItem);
-        }
+        public ToDoList With(ImList<ToDoItem> items) => 
+            new ToDoList(items, NewItem);
 
         public override string ToString()
         {
@@ -65,7 +61,7 @@ namespace Tea.Sample.ToDo
 
             if (msg is AddNewItem)
                 return IsNewItemValid
-                    ? new ToDoList(Items.Prep(new ToDoItem(NewItem)), string.Empty)
+                    ? new ToDoList(Items.Prepend(new ToDoItem(NewItem)), string.Empty)
                     : this;
 
             if (msg is RemoveItem removeItem)
@@ -78,15 +74,12 @@ namespace Tea.Sample.ToDo
             return this;
         }
 
-        public UI<IMsg<ToDoList>> View()
-        {
-            return
-                column(
-                    column(Items.Map((item, i) =>
-                        row(item.ViewIn(this, i),
-                            button("remove", RemoveItem.It(i))))),
-                    row(input(NewItem, EditNewItem.It, props(width(100))),
-                        button("Add", AddNewItem.It, props(isEnabled(IsNewItemValid)))));
-        }
+        public UI<IMsg<ToDoList>> View() => 
+            column(
+                column(Items.Map((item, i) =>
+                    row(item.ViewIn(this, i),
+                        button("remove", RemoveItem.It(i))))),
+                row(input(NewItem, EditNewItem.It, style(width(100))),
+                    button("Add", AddNewItem.It, style(isEnabled(true/*IsNewItemValid*/)))));
     }
 }

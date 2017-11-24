@@ -16,8 +16,8 @@ namespace Tea.Sample.ToDo
         public static ToDoCards Init()
         {
             return new ToDoCards(ImList<ToDoList>.Empty
-                .Prep(ToDoList.Init())
-                .Prep(ToDoList.Init()));
+                .Prepend(ToDoList.Init())
+                .Prepend(ToDoList.Init()));
         }
 
         public override string ToString()

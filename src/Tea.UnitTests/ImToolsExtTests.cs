@@ -10,10 +10,10 @@ namespace Tea.UnitTests
         public void Can_get_item_at_specific_index()
         {
             var list = ImList<int>.Empty
-                .Prep(1)
-                .Prep(5)
-                .Prep(10)
-                .Prep(15);
+                .Prepend(1)
+                .Prepend(5)
+                .Prepend(10)
+                .Prepend(15);
 
             Assert.AreEqual(10, list.GetAt(1));
         }
@@ -22,10 +22,10 @@ namespace Tea.UnitTests
         public void Can_efficiently_map_at_specific_index()
         {
             var list = ImList<int>.Empty
-                .Prep(1)
-                .Prep(5)
-                .Prep(10)
-                .Prep(15);
+                .Prepend(1)
+                .Prepend(5)
+                .Prepend(10)
+                .Prepend(15);
 
             list = list.With(1, i => i + 1);
             CollectionAssert.AreEqual(new[] { 15, 11, 5, 1 }, list.Enumerate());
@@ -50,10 +50,10 @@ namespace Tea.UnitTests
         public void Can_remove_item_with_index()
         {
             var list = ImList<int>.Empty
-                .Prep(1)
-                .Prep(5)
-                .Prep(10)
-                .Prep(15);
+                .Prepend(1)
+                .Prepend(5)
+                .Prepend(10)
+                .Prepend(15);
 
             list = list.Without(2);
             CollectionAssert.AreEqual(new[] { 15, 10, 1 }, list.Enumerate());

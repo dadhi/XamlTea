@@ -1,24 +1,22 @@
 ﻿using System;
 using ImTools;
+// ReSharper disable InconsistentNaming
 #pragma warning disable 659
 
 namespace Tea
 {
     public static class Event
     {
-        public static Ref<Ref<Action<TMsg>>> Of<TMsg>(Action<TMsg> send)
-        {
-            return Ref.Of(Ref.Of(send));
-        }
+        public static Ref<Ref<Action<TMsg>>> Of<TMsg>(Action<TMsg> send) => Ref.Of(Ref.Of(send));
 
         public static void Empty<TMsg>(TMsg msg) { }
     }
 
     public enum Layout { Horizontal, Vertical }
 
-    public abstract class Prop
+    public abstract class Style
     {
-        public class Of<TValue> : Prop
+        public class Of<TValue> : Style
         {
             public readonly TValue Value;
             public Of(TValue value) { Value = value; }
@@ -41,92 +39,85 @@ namespace Tea
         public class Tooltip : Of<string> { public Tooltip(string value) : base(value) { } }
     }
 
-    public static class Props
+    public static class Styles
     {
-        public static ImList<Prop> props(params Prop[] ps) => ImToolsExt.List(ps);
+        public static ImList<Style> style(params Style[] styles) => styles.AsList();
 
-        public static Prop width(int n) => new Prop.Width(n);
-        public static Prop height(int n) => new Prop.Height(n);
-        public static Prop isEnabled(bool enabled) => enabled ? Prop.IsEnabled.Enabled : Prop.IsEnabled.Disabled;
-        public static Prop tootip(string text) => new Prop.Tooltip(text);
+        public static Style width(int n) => new Style.Width(n);
+        public static Style height(int n) => new Style.Height(n);
+        public static Style isEnabled(bool enabled) => enabled ? Style.IsEnabled.Enabled : Style.IsEnabled.Disabled;
+        public static Style tooltip(string text) => new Style.Tooltip(text);
 
-        public static TProp Get<TProp>(this ImList<Prop> props, TProp defaultProp = null)
-            where TProp : Prop =>
-            props.GetOrDefault(p => p is TProp) as TProp ?? defaultProp;
-
-        public static ImList<Pair<Prop, Prop>> Diff(this ImList<Prop> it, ImList<Prop> other)
+        public static ImList<(Style, Style)> PrependDiffs(this ImList<Style> source, ImList<Style> other)
         {
-            if (it.IsEmpty && other.IsEmpty)
-                return ImList<Pair<Prop, Prop>>.Empty;
+            if (source.IsEmpty && other.IsEmpty)
+                return ImList<(Style, Style)>.Empty;
+
             if (other.IsEmpty)
-                return it.Map(prop => pair.of<Prop, Prop>(prop, null));
-            if (it.IsEmpty)
-                return other.Map(prop => pair.of<Prop, Prop>(null, prop));
-            var result = it.To(ImList<Pair<Prop, Prop>>.Empty, (p1, _) =>
+                return source.Map(s => (s, default(Style)));
+
+            if (source.IsEmpty)
+                return other.Map(s => (default(Style), s));
+
+            var resultDiff = source.To(ImList<(Style, Style)>.Empty, (sourceStyle, sourceDiff) =>
             {
-                Prop p2 = null;
-                other = other.To(ImList<Prop>.Empty, (p, __) =>
+                var s2 = default(Style);
+                other = other.To(ImList<Style>.Empty, (otherStyle, otherDiff) =>
                 {
-                    if (p.GetType() != p1.GetType())
-                        return __.Prep(p);
-                    p2 = p;
-                    return __;
+                    if (otherStyle.GetType() != sourceStyle.GetType())
+                        return otherDiff.Prepend(otherStyle);
+
+                    s2 = otherStyle;
+                    return otherDiff;
                 });
 
-                if (p2 == null)
-                    return _.Prep(pair.of<Prop, Prop>(p1, null));
+                if (s2 == null)
+                    return sourceDiff.Prepend((sourceStyle, default(Style)));
 
-                if (p2 != null && p1 != p2 && !p2.Equals(p1))
-                    return _.Prep(pair.of(p1, p2));
+                if (s2 != null && sourceStyle != s2 && !s2.Equals(sourceStyle))
+                    return sourceDiff.Prepend((sourceStyle, s2));
 
-                return _;
+                return sourceDiff;
             });
+
             if (other.IsEmpty)
-                return result;
-            return other.To(result, (p, _) => _.Prep(pair.of<Prop, Prop>(null, p)));
+                return resultDiff;
+
+            return other.To(resultDiff, (style, diff) => diff.Prepend((default(Style), style)));
         }
     }
 
     public abstract class UI
     {
-        public readonly ImList<Prop> Props;
+        public readonly ImList<Style> Styles;
         public readonly string Content;
 
-        private UI(ImList<Prop> props, string content)
+        private UI(ImList<Style> styles, string content)
         {
-            Props = props ?? ImList<Prop>.Empty;
+            Styles = styles ?? ImList<Style>.Empty;
             Content = content;
         }
 
-        public virtual bool Equals(UI other) =>
-            other != null &&
-            other.GetType() == GetType() &&
-            other.Content == Content &&
-            Props.Diff(other.Props).IsEmpty;
-
         public class Text : UI
         {
-            public Text(ImList<Prop> props, string content) : base(props, content) { }
+            public Text(ImList<Style> styles, string content) : base(styles, content) { }
         }
 
         public class Input : UI
         {
             public readonly Ref<Ref<Action<string>>> Changed;
 
-            public Input(ImList<Prop> props, string text, Ref<Ref<Action<string>>> changed) : base(props, text)
-            {
+            public Input(ImList<Style> styles, string text, Ref<Ref<Action<string>>> changed) : base(styles, text) => 
                 Changed = changed;
-            }
         }
 
         public class Button : UI
         {
             public readonly Ref<Ref<Action<unit>>> Clicked;
 
-            public Button(ImList<Prop> props, string text, Ref<Ref<Action<unit>>> clicked) : base(props, text)
-            {
+            public Button(ImList<Style> styles, string text, Ref<Ref<Action<unit>>> clicked) 
+                : base(styles, text) => 
                 Clicked = clicked;
-            }
         }
 
         public class CheckBox : UI
@@ -134,15 +125,12 @@ namespace Tea
             public readonly bool IsChecked;
             public readonly Ref<Ref<Action<bool>>> Changed;
 
-            public CheckBox(ImList<Prop> props, string text, bool isChecked, Ref<Ref<Action<bool>>> changed)
-                : base(props, text)
+            public CheckBox(ImList<Style> styles, string text, bool isChecked, Ref<Ref<Action<bool>>> changed)
+                : base(styles, text)
             {
                 IsChecked = isChecked;
                 Changed = changed;
             }
-
-            public override bool Equals(UI other) =>
-                base.Equals(other) && ((CheckBox)other).IsChecked == IsChecked;
         }
 
         public class Panel : UI
@@ -150,71 +138,53 @@ namespace Tea
             public readonly Layout Layout;
             public readonly ImList<UI> Parts;
 
-            public Panel(ImList<Prop> props, Layout layout, ImList<UI> parts) : base(props, null)
+            public Panel(ImList<Style> styles, Layout layout, ImList<UI> parts) : base(styles, null)
             {
                 Layout = layout;
                 Parts = parts;
             }
-
-            public override bool Equals(UI other) => false; // todo: comparison here?
         }
     }
 
     /// UI component update and event redirection.
     public abstract class UIUpdate
     {
+        public readonly ImList<int> Path;
+
+        protected UIUpdate(ImList<int> path)
+        {
+            Path = path;
+        }
+
         public class Insert : UIUpdate
         {
-            public readonly ImList<int> Path;
             public readonly UI UI;
-
-            public Insert(ImList<int> path, UI ui)
-            {
-                Path = path;
-                UI = ui;
-            }
+            public Insert(ImList<int> path, UI ui) : base(path) => UI = ui;
         }
 
         public class Update : UIUpdate
         {
-            public readonly ImList<int> Path;
             public readonly UI UI;
 
-            public Update(ImList<int> path, UI ui)
-            {
-                Path = path;
-                UI = ui;
-            }
+            public Update(ImList<int> path, UI ui) : base(path) => UI = ui;
         }
 
         public class Replace : UIUpdate
         {
-            public readonly ImList<int> Path;
             public readonly UI UI;
 
-            public Replace(ImList<int> path, UI ui)
-            {
-                Path = path;
-                UI = ui;
-            }
+            public Replace(ImList<int> path, UI ui) : base(path) => UI = ui;
         }
 
         public class Remove : UIUpdate
         {
-            public readonly ImList<int> Path;
-            public Remove(ImList<int> path)
-            {
-                Path = path;
-            }
+            public Remove(ImList<int> path) : base(path) { }
         }
 
         public class Event : UIUpdate
         {
             public readonly Action<unit> Send;
-            public Event(Action<unit> send)
-            {
-                Send = send;
-            }
+            public Event(Action<unit> send) : base(ImList<int>.Empty) => Send = send;
         }
     }
 
@@ -260,11 +230,11 @@ namespace Tea
     {
         public static UI<IMsg<THolder>> ViewIn<TItem, THolder>(this TItem item, int itemIndex)
             where TItem : IComponent<TItem>
-            where THolder : IComponent<THolder> 
+            where THolder : IComponent<THolder>
             => item.View().MapMsg(msg => msg.Lift<TItem, THolder>(itemIndex));
 
         public static UI<IMsg<THolder>> ViewIn<TItem, THolder>(this TItem item, THolder hereOnlyForTypeInference, int itemIndex = 0)
-            where TItem : IComponent<TItem> 
+            where TItem : IComponent<TItem>
             => item.View().MapMsg(msg => msg.Lift<TItem, THolder>(itemIndex));
 
         public static IMsg<THolder> Lift<TItem, THolder>(this IMsg<TItem> itemMsg, int itemIndex)
@@ -278,68 +248,58 @@ namespace Tea
 
     public static class UIParts
     {
-        public static UI<TMsg> text<TMsg>(string text, ImList<Prop> props = null)
-        {
-            return new UI<TMsg>(new UI.Text(props, text), Event.Empty);
-        }
+        public static UI<TMsg> text<TMsg>(string text, ImList<Style> styles = null) =>
+            new UI<TMsg>(new UI.Text(styles, text), Event.Empty);
 
         public static UI<TMsg> input<TMsg>(string text, Func<string, TMsg> changed,
-            ImList<Prop> props = null)
+            ImList<Style> styles = null)
         {
             var ev = Event.Of<string>(Event.Empty);
-            var ui = new UI<TMsg>(new UI.Input(props, text, ev), Event.Empty);
+            var ui = new UI<TMsg>(new UI.Input(styles, text, ev), Event.Empty);
             ev.Value.Swap(s => ui.Send(changed(s)));
             return ui;
         }
 
         public static UI<TMsg> button<TMsg>(string text, TMsg clicked,
-            ImList<Prop> props = null)
+            ImList<Style> styles = null)
         {
             var ev = Event.Of<unit>(Event.Empty);
-            var ui = new UI<TMsg>(new UI.Button(props, text, ev), Event.Empty);
+            var ui = new UI<TMsg>(new UI.Button(styles, text, ev), Event.Empty);
             ev.Value.Swap(_ => ui.Send(clicked));
             return ui;
         }
 
         public static UI<TMsg> checkbox<TMsg>(string text, bool isChecked, Func<bool, TMsg> changed,
-            ImList<Prop> props = null)
+            ImList<Style> styles = null)
         {
             var ev = Event.Of<bool>(Event.Empty);
-            var ui = new UI<TMsg>(new UI.CheckBox(props, text, isChecked, ev), Event.Empty);
+            var ui = new UI<TMsg>(new UI.CheckBox(styles, text, isChecked, ev), Event.Empty);
             ev.Value.Swap(check => ui.Send(changed(check)));
             return ui;
         }
 
-        public static UI<TMsg> row<TMsg>(params UI<TMsg>[] parts)
-        {
-            return panel(Layout.Horizontal, null, parts);
-        }
+        public static UI<TMsg> row<TMsg>(params UI<TMsg>[] parts) =>
+            panel(Layout.Horizontal, null, parts);
 
-        public static UI<TMsg> row<TMsg>(ImList<UI<TMsg>> parts)
-        {
-            return panel(Layout.Horizontal, null, parts.ToArray());
-        }
+        public static UI<TMsg> row<TMsg>(ImList<UI<TMsg>> parts) =>
+            panel(Layout.Horizontal, null, parts.ToArray());
 
-        public static UI<TMsg> column<TMsg>(params UI<TMsg>[] parts)
-        {
-            return panel(Layout.Vertical, null, parts);
-        }
+        public static UI<TMsg> column<TMsg>(params UI<TMsg>[] parts) =>
+            panel(Layout.Vertical, null, parts);
 
-        public static UI<TMsg> column<TMsg>(ImList<UI<TMsg>> parts)
-        {
-            return panel(Layout.Vertical, null, parts.ToArray());
-        }
+        public static UI<TMsg> column<TMsg>(ImList<UI<TMsg>> parts) =>
+            panel(Layout.Vertical, null, parts.ToArray());
 
         public static UI<TMsg> panel<TMsg>(Layout layout,
-            ImList<Prop> props, params UI<TMsg>[] parts)
+            ImList<Style> styles, params UI<TMsg>[] parts)
         {
             var uiParts = ImList<UI>.Empty;
 
             // add in reverse order to preserve the parts order
             for (var i = parts.Length - 1; i >= 0; i--)
-                uiParts = uiParts.Prep(parts[i].BaseUI);
+                uiParts = uiParts.Prepend(parts[i].BaseUI);
 
-            var ui = new UI<TMsg>(new UI.Panel(props, layout, uiParts), Event.Empty);
+            var ui = new UI<TMsg>(new UI.Panel(styles, layout, uiParts), Event.Empty);
 
             void Send(TMsg msg) => ui.Send(msg);
             for (var i = 0; i < parts.Length; i++)
@@ -351,91 +311,91 @@ namespace Tea
 
     public static class UIApp
     {
-        // todo: May be combined with the view to avoid repeating in each parent component
-        /// Returns a new UI component mapping the message event using the given function.
-        public static UI<THolderMsg> MapMsg<TItemMsg, THolderMsg>(this UI<TItemMsg> source, Func<TItemMsg, THolderMsg> map)
+        ///<summary>Returns a new UI component mapping the message event using the given function.</summary>
+        public static UI<THolderMsg> MapMsg<TItemMsg, THolderMsg>(
+            this UI<TItemMsg> source, Func<TItemMsg, THolderMsg> map)
         {
             var result = new UI<THolderMsg>(source.BaseUI, Event.Empty);
             source.Send = msg => result.Send(map(msg));
             return result;
         }
 
-        /// Returns a list of UI updates from two UI components.
-        public static ImList<UIUpdate> Diff<TMsg1, TMsg2>(this UI<TMsg1> oldUI, UI<TMsg2> newUI)
-        {
-            return Diff(oldUI.BaseUI, newUI.BaseUI, ImList<int>.Empty, 0, ImList<UIUpdate>.Empty);
-        }
+        ///<summary>Returns a list of UI updates from two UI components.
+        /// To ensure correct insert and removal sequence where the insert/remove index are existing.</summary> 
+        public static ImList<UIUpdate> Diff<TMsg1, TMsg2>(this UI<TMsg1> oldUI, UI<TMsg2> newUI) =>
+            ImList<UIUpdate>.Empty.PrependDiffs(oldUI.BaseUI, newUI.BaseUI, ImList<int>.Empty, 0).Reverse();
 
-        private static ImList<UIUpdate> Diff(UI oldUI, UI newUI, ImList<int> path, int index, ImList<UIUpdate> diffs)
+        private static ImList<UIUpdate> PrependDiffs(this ImList<UIUpdate> source,
+            UI oldUI, UI newUI, ImList<int> path, int index)
         {
             if (ReferenceEquals(oldUI, newUI))
-                return diffs;
+                return source;
 
-            // todo: consolidate same ui handling because it is not so different
             if (oldUI is UI.Text && newUI is UI.Text)
             {
                 if (oldUI.Content != newUI.Content)
-                    diffs = diffs.Prep(new UIUpdate.Update(path, newUI));
-                return diffs;
+                    source = source.Prepend(new UIUpdate.Update(path, newUI));
+                return source;
             }
 
-            if (oldUI is UI.Button && newUI is UI.Button)
+            if (oldUI is UI.Button oldButton && newUI is UI.Button newButton)
             {
-                // todo: for all
-                if (!oldUI.Equals(newUI))
-                    diffs = diffs.Prep(new UIUpdate.Update(path, newUI));
-
-                var updateEvent = UpdateEvent(((UI.Button)oldUI).Clicked, ((UI.Button)newUI).Clicked);
-                return diffs.Prep(new UIUpdate.Event(updateEvent));
+                if (oldButton.Content != newButton.Content)
+                    source = source.Prepend(new UIUpdate.Update(path, newButton));
+                return source.Prepend(new UIUpdate.Event(UpdateEvent(oldButton.Clicked, newButton.Clicked)));
             }
 
-            if (oldUI is UI.Input && newUI is UI.Input)
+            if (oldUI is UI.Input oldInput && newUI is UI.Input newInput)
             {
-                if (oldUI.Content != newUI.Content)
-                    diffs = diffs.Prep(new UIUpdate.Update(path, newUI));
-
-                var updateEvent = UpdateEvent(((UI.Input)oldUI).Changed, ((UI.Input)newUI).Changed);
-                return diffs.Prep(new UIUpdate.Event(updateEvent));
+                if (oldInput.Content != newInput.Content)
+                    source = source.Prepend(new UIUpdate.Update(path, newInput));
+                return source.Prepend(new UIUpdate.Event(UpdateEvent(oldInput.Changed, newInput.Changed)));
             }
 
-            var oldDiv = oldUI as UI.Panel;
-            var newDiv = newUI as UI.Panel;
+            if (oldUI is UI.CheckBox oldCheckbox && newUI is UI.CheckBox newCheckbox)
+            {
+                if (oldCheckbox.Content != newCheckbox.Content ||
+                    oldCheckbox.IsChecked != newCheckbox.IsChecked)
+                    source = source.Prepend(new UIUpdate.Update(path, newCheckbox));
+                return source.Prepend(new UIUpdate.Event(UpdateEvent(oldCheckbox.Changed, newCheckbox.Changed)));
+            }
 
-            if (oldDiv != null && newDiv != null)
+            if (oldUI is UI.Panel oldPanel && newUI is UI.Panel newPanel)
             {
                 // if layout changed then fully replace
-                if (oldDiv.Layout != newDiv.Layout)
-                    return diffs.Prep(new UIUpdate.Replace(path, newDiv));
+                if (oldPanel.Layout != newPanel.Layout)
+                    return source.Prepend(new UIUpdate.Replace(path, newPanel));
 
-                var oldParts = oldDiv.Parts;
-                var newParts = newDiv.Parts;
+                var oldParts = oldPanel.Parts;
+                var newParts = newPanel.Parts;
 
                 // if both empty
                 if (oldParts.IsEmpty && newParts.IsEmpty)
-                    return diffs;
+                    return source;
 
                 // for each new child UI do insert
                 if (oldParts.IsEmpty)
-                    return newParts.To(diffs,
-                        (ui, i, _) => _.Prep(new UIUpdate.Insert(path.Prep(index + i), ui)))
-                        .Reverse();
+                    return newParts.To(source,
+                        (ui, i, d) => d.Prepend(new UIUpdate.Insert(path.Prepend(index + i), ui)));
 
                 // remove old ui children
                 if (newParts.IsEmpty)
-                    return oldParts.To(diffs,
-                        (ui, i, _) => _.Prep(new UIUpdate.Remove(path.Prep(index + i))));
+                    return oldParts.To(source,
+                        (ui, i, d) => d.Prepend(new UIUpdate.Remove(path.Prepend(index + i))));
 
-                // diff the first items, then recursively the rest 
-                diffs = Diff(oldParts.Head, newParts.Head, path.Prep(index), 0, diffs);
+                source = source.PrependDiffs(oldParts.Head, newParts.Head, path.Prepend(index), 0);
+                if (oldParts.Tail.IsEmpty && newParts.Tail.IsEmpty)
+                    return source;
 
-                return Diff(
-                    new UI.Panel(oldDiv.Props, oldDiv.Layout, oldParts.Tail),
-                    new UI.Panel(oldDiv.Props, oldDiv.Layout, newParts.Tail),
-                    path, index + 1, diffs);
+                // todo: optimize by removing the re-creation of Panel just for recursion
+                return source.PrependDiffs(
+                    new UI.Panel(oldPanel.Styles, oldPanel.Layout, oldParts.Tail),
+                    new UI.Panel(newPanel.Styles, newPanel.Layout, newParts.Tail),
+                    path, index + 1);
             }
 
             // otherwise just replace
-            return diffs.Prep(new UIUpdate.Replace(path, newUI));
+            return source.Prepend(new UIUpdate.Replace(path, newUI));
         }
 
         // Point first ref to second ref value.value
@@ -451,10 +411,7 @@ namespace Tea
             };
         }
 
-        /// <summary>Runs application/component loop of Init->View->Update->View->Update->View... </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="nativeUI"></param>
-        /// <param name="component"></param>
+        /// <summary>Runs Model-View-Update loop, e.g. Init->View->Update->View->Update->View... </summary>
         public static void Run<T>(INativeUI nativeUI, IComponent<T> component) where T : IComponent<T>
         {
             void UpdateViewLoop(IComponent<T> model, UI<IMsg<T>> ui, IMsg<T> message)
@@ -471,10 +428,10 @@ namespace Tea
                 nativeUI.Apply(uiUpdates);
             }
 
-            // Render and insert intial UI from the model
+            // Render and insert initial UI from the model
             var initialUI = component.View();
             initialUI.Send = msg => UpdateViewLoop(component, initialUI, msg);
-            nativeUI.Apply(ImList<UIUpdate>.Empty.Prep(new UIUpdate.Insert(ImList<int>.Empty, initialUI.BaseUI)));
+            nativeUI.Apply(ImList<UIUpdate>.Empty.Prepend(new UIUpdate.Insert(ImList<int>.Empty, initialUI.BaseUI)));
         }
     }
 }
