@@ -1,53 +1,40 @@
-﻿using ImTools;
+using System.Text;
+using ImTools;
 using static Tea.UIParts;
 
 namespace Tea.Sample.ToDo
 {
     public class ToDoApp : IComponent<ToDoApp>
     {
-        public readonly ImList<ToDoCards> History;
-        public readonly ToDoCards Cards;
+        public readonly ImList<ToDoList> Cards;
 
-        public ToDoApp(ImList<ToDoCards> history, ToDoCards cards)
+        public ToDoApp(ImList<ToDoList> cards)
         {
-            History = history;
             Cards = cards;
         }
 
-        public static ToDoApp Init()
-        {
-            return new ToDoApp(ImList<ToDoCards>.Empty, ToDoCards.Init());
-        }
+        public static ToDoApp Init() => 
+            new ToDoApp(ImList<ToDoList>.Empty.Prepend(ToDoList.Init()).Prepend(ToDoList.Init()));
 
-        public class ApplyModelFromHistory : IMsg<ToDoApp>
+        public override string ToString()
         {
-            public ToDoCards Model { get; private set; }
-            public static IMsg<ToDoApp> It(ToDoCards model) => new ApplyModelFromHistory { Model = model };
-        }
-
-        public UI<IMsg<ToDoApp>> View()
-        {
-            return
-                column(
-                    Cards.ViewIn(this),
-                    column(History.Map(model => 
-                        row(
-                            button("apply", ApplyModelFromHistory.It(model)),
-                            text<IMsg<ToDoApp>>(model.ToString()))
-                        )
-                    )
-                );
+            var s = new StringBuilder();
+            s.Append("{Cards=[");
+            Cards.Fold(s, (it, i, _) => (i == 0 ? _ : _.Append(",")).Append(it.ToString()));
+            s.Append("]}");
+            return s.ToString();
         }
 
         public ToDoApp Update(IMsg<ToDoApp> msg)
         {
-            if (msg is ApplyModelFromHistory applyModel)
-                return new ToDoApp(History, applyModel.Model);
-
-            if (msg is ItemChanged<ToDoCards, ToDoApp> modelChanged)
-                return new ToDoApp(History.Prepend(Cards), Cards.Update(modelChanged.Msg));
-
+            if (msg is ItemChanged<ToDoList, ToDoApp> card)
+                return new ToDoApp(Cards.UpdateAt(card.Index, it => it.Update(card.Msg)));
             return this;
+        }
+
+        public UI<IMsg<ToDoApp>> View()
+        {
+            return row(Cards.Map(Component.ViewIn<ToDoList, ToDoApp>));
         }
     }
 }

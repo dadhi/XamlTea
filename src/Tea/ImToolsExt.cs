@@ -3,122 +3,93 @@ using ImTools;
 
 namespace Tea
 {
-    public sealed class unit
+    public sealed class Unit
     {
-        public static readonly unit _ = new unit();
-        private unit() { }
-    }
-
-    public struct Pair<A, B>
-    {
-        public A a;
-        public B b;
-
-        public Pair(A a, B b)
-        {
-            this.a = a;
-            this.b = b;
-        }
-    }
-
-    public static class pair
-    {
-        public static Pair<A, B> of<A, B>(A a, B b)
-        {
-            return new Pair<A, B>(a, b);
-        }
+        public static readonly Unit unit = new Unit();
+        private Unit() { }
     }
 
     public static class ImToolsExt
     {
-        public static ImList<T> AsList<T>(this T[] values)
+        public static ImList<T> list<T>(this T[] items)
         {
-            if (values.IsNullOrEmpty())
+            if (items.IsNullOrEmpty())
                 return ImList<T>.Empty;
-            var result = ImList<T>.Empty;
-            for (var i = values.Length - 1; i >= 0; i--)
-                result = result.Prepend(values[i]);
-            return result;
+            var list = ImList<T>.Empty;
+            for (var i = items.Length - 1; i >= 0; --i)
+                list = list.Prepend(items[i]);
+            return list;
         }
 
-        public static T GetAt<T>(this ImList<T> source, int index)
+        public static T GetAt<T>(this ImList<T> list, int i, T @default = default)
         {
-            if (source.IsEmpty)
-                return default(T);
-            for (var i = 0; !source.IsEmpty; source = source.Tail, ++i)
-                if (i == index)
-                    return source.Head;
-            return default(T);
+            if (list.IsEmpty)
+                return @default;
+            for (var j = 0; !list.IsEmpty; list = list.Tail, ++j)
+                if (j == i)
+                    return list.Head;
+            return @default;
         }
 
-        public static T GetOrDefault<T>(this ImList<T> source, Func<T, bool> condition)
+        public static T Get<T>(this ImList<T> list, Func<T, bool> condition, T @default = default)
         {
-            if (source.IsEmpty)
-                return default(T);
-            for (; !source.IsEmpty; source = source.Tail)
-                if (condition(source.Head))
-                    return source.Head;
-            return default(T);
+            if (list.IsEmpty)
+                return @default;
+            for (; !list.IsEmpty; list = list.Tail)
+                if (condition(list.Head))
+                    return list.Head;
+            return @default;
         }
 
-        public static ImList<T> Prepend<T>(this ImList<T> source, ImList<T> prefix)
+        /// <summary> Splits the list into two parts, first part is up to but no including the index.
+        /// BUT the first part will be returned in REVERSE order. That's why it is called Unzip and not Split.
+        /// <code>list(1, 2, 3, 4, 5).Unzip(2) =>> (list(2, 1), list(3, 4, 5)) </code></summary>
+        public static (ImList<T> revHead, ImList<T> tail) Unzip<T>(this ImList<T> list, int i)
         {
-            if (source.IsEmpty)
-                return prefix;
-            for (; !prefix.IsEmpty; prefix = prefix.Tail)
-                source = source.Prepend(prefix.Head);
-            return source;
+            if (list.IsEmpty)
+                return (list, list);
+            if (i <= 0)
+                return (ImList<T>.Empty, list);
+
+            var head = ImList<T>.Empty;
+            for (var j = 0; j < i && !list.IsEmpty; ++j, list = list.Tail)
+                head = head.Prepend(list.Head);
+
+            return (head, list);
         }
 
-        public static ImList<T> With<T>(this ImList<T> source, int index, Func<T, T> update)
+        /// <summary>Joins reversed head with tail</summary>
+        public static ImList<T> Zip<T>(this ImList<T> revHead, ImList<T> tail)
         {
-            if (source.IsEmpty || index < 0)
-                return source;
-
-            if (index == 0)
-                return source.Tail.Prepend(update(source.Head));
-
-            // start from index 1
-            var reversedPrefix = ImList<T>.Empty.Prepend(source.Head);
-            var suffix = source.Tail;
-            for (var i = 1; !suffix.IsEmpty; suffix = suffix.Tail, ++i)
-            {
-                if (i == index)
-                {
-                    var sourceItem = suffix.Head;
-                    var updatedItem = update(sourceItem);
-                    if (ReferenceEquals(updatedItem, sourceItem) || 
-                        updatedItem != null && updatedItem.Equals(sourceItem))
-                        return source; // if item did not change, return the original source
-                    return suffix.Tail.Prepend(updatedItem).Prepend(reversedPrefix);
-                }
-                reversedPrefix = reversedPrefix.Prepend(suffix.Head);
-            }
-
-            // if index is outside of the bounds, return original array
-            return source;
+            if (revHead.IsEmpty)
+                return tail;
+            for (; !revHead.IsEmpty; revHead = revHead.Tail)
+                tail = tail.Prepend(revHead.Head);
+            return tail;
         }
 
-        public static ImList<T> Without<T>(this ImList<T> source, int index)
+        /// <summary> <code>list(1, 2, 3).Cons(list(4, 5)) => list(1, 2, 3, 4, 5)</code></summary>
+        public static ImList<T> Cons<T>(this ImList<T> head, ImList<T> tail) =>
+            head.Reverse().Zip(tail);
+
+        /// <summary> <code>list(1, 2, 3).UpdateAt(1, x => x*2) => list(1, 4, 3)</code>
+        /// The method will return original list for out of bound index. So you can check that.</summary>
+        public static ImList<T> UpdateAt<T>(this ImList<T> list, int i, Func<T, T> update)
         {
-            if (source.IsEmpty || index < 0)
-                return source;
+            if (list.IsEmpty || i < 0)
+                return list;
+            var (revHead, tail) = list.Unzip(i);
+            return tail.IsEmpty ? list : revHead.Zip(update(tail.Head).Cons(tail.Tail));
+        }
 
-            if (index == 0)
-                return source.Tail;
-
-            // start from index 1
-            var reversedPrefix = ImList<T>.Empty.Prepend(source.Head);
-            var remaining = source.Tail;
-            for (var i = 1; !remaining.IsEmpty; remaining = remaining.Tail, ++i)
-            {
-                if (i == index)
-                    return remaining.Tail.Prepend(reversedPrefix);
-                reversedPrefix = reversedPrefix.Prepend(remaining.Head);
-            }
-
-            // if index is outside of the bounds, return original array
-            return source;
+        /// <summary> <code>list(1, 2, 3).RemoveAt(1) => list(1, 3)</code>
+        /// The method will return original list for out of bound index. So you can check that.</summary>
+        public static ImList<T> RemoveAt<T>(this ImList<T> list, int i)
+        {
+            if (list.IsEmpty || i < 0)
+                return list;
+            var (revHead, tail) = list.Unzip(i);
+            return tail.IsEmpty ? list : revHead.Zip(tail.Tail);
         }
     }
 }

@@ -43,6 +43,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Free.cs" />
     <Compile Include="ImToolsExtTests.cs" />
   </ItemGroup>
   <ItemGroup>

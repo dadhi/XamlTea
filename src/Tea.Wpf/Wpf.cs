@@ -70,17 +70,14 @@ namespace Tea.Wpf
                 throw new ArgumentNullException(nameof(ui));
 
             if (ui is UI.Text)
-            {
-                var elem = new Label { Content = ui.Content };
-                return WithStyles(elem, ui.Styles);
-            }
+                return new Label { Content = ui.Content };
 
             if (ui is UI.Input input)
             {
                 var elem = new TextBox { Text = input.Content };
                 var ev = input.Changed.Value;
                 elem.TextChanged += (sender, _) => ev.Value(((TextBox)sender).Text);
-                return WithStyles(elem, ui.Styles);
+                return elem;
             }
 
             if (ui is UI.Button button)
@@ -88,9 +85,9 @@ namespace Tea.Wpf
                 var elem = new Button { Content = button.Content };
 
                 var ev = button.Clicked.Value;
-                elem.Click += (sender, _) => ev.Value(unit._);
+                elem.Click += (sender, _) => ev.Value(Unit.unit);
 
-                return WithStyles(elem, ui.Styles);
+                return elem;
             }
 
             if (ui is UI.Panel panel)
@@ -101,7 +98,7 @@ namespace Tea.Wpf
                 var parts = panel.Parts.Map(CreateUI);
                 parts.Do(p => elem.Children.Add(p));
 
-                return WithStyles(elem, ui.Styles);
+                return elem;
             }
 
             if (ui is UI.CheckBox check)
@@ -111,35 +108,34 @@ namespace Tea.Wpf
                     Content = check.Content,
                     IsChecked = check.IsChecked,
                 };
-                
+
                 var ev = check.Changed.Value;
                 elem.Checked += (sender, _) => ev.Value(true);
                 elem.Unchecked += (sender, _) => ev.Value(false);
 
-                return WithStyles(elem, ui.Styles);
+                return elem;
             }
 
             throw new NotSupportedException("The type of UI is not supported: " + ui.GetType());
         }
 
-        private static readonly Thickness DefaultMargin = new Thickness(2);
-
-        private static FrameworkElement WithStyles(FrameworkElement elem, ImList<Style> styles)
-        {
-            elem.Margin = DefaultMargin;
-            styles.Do(style =>
-            {
-                if (style is Style.Width width)
-                    elem.Width = width.Value;
-                else if (style is Style.Height height)
-                    elem.Height = height.Value;
-                else if (style is Style.IsEnabled isEnabled)
-                    elem.IsEnabled = isEnabled.Value;
-                else if (style is Style.Tooltip tooltip)
-                    elem.ToolTip = tooltip.Value;
-            });
-            return elem;
-        }
+        //private static readonly Thickness DefaultMargin = new Thickness(2);
+        //private static FrameworkElement WithStyles(FrameworkElement elem, ImList<Style> styles)
+        //{
+        //    elem.Margin = DefaultMargin;
+        //    styles.Do(style =>
+        //    {
+        //        if (style is Style.Width width)
+        //            elem.Width = width.Value;
+        //        else if (style is Style.Height height)
+        //            elem.Height = height.Value;
+        //        else if (style is Style.IsEnabled isEnabled)
+        //            elem.IsEnabled = isEnabled.Value;
+        //        else if (style is Style.Tooltip tooltip)
+        //            elem.ToolTip = tooltip.Value;
+        //    });
+        //    return elem;
+        //}
 
         private static void Update(UI ui, UIElement elem)
         {
@@ -166,8 +162,6 @@ namespace Tea.Wpf
                     checkBox.IsChecked = checkBoxUI.IsChecked;
                     break;
             }
-
-            WithStyles((FrameworkElement)elem, ui.Styles);
         }
     }
 }

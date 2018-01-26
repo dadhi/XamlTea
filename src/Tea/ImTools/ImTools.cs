@@ -620,10 +620,7 @@ namespace ImTools
         public static readonly ImList<T> Empty = new ImList<T>();
 
         /// <summary>True for empty list.</summary>
-        public bool IsEmpty
-        {
-            get { return Tail == null; }
-        }
+        public bool IsEmpty => Tail == null;
 
         /// <summary>First value in a list.</summary>
         public readonly T Head;
@@ -631,14 +628,8 @@ namespace ImTools
         /// <summary>The rest of values or Empty if list has a single value.</summary>
         public readonly ImList<T> Tail;
 
-        // todo: Move to ImTools
         /// <summary>Prepends new value and returns new list.</summary>
-        /// <param name="head">New first value.</param>
-        /// <returns>List with the new head.</returns>
-        public ImList<T> Prepend(T head)
-        {
-            return new ImList<T>(head, this);
-        }
+        public ImList<T> Prepend(T head) => new ImList<T>(head, this);
 
         /// <summary>Enumerates the list.</summary>
         /// <returns>Each item in turn.</returns>
@@ -683,80 +674,52 @@ namespace ImTools
     /// <summary>Extension methods providing basic operations on a list.</summary>
     public static class ImList
     {
+        /// <summary>Constructs list from head and tail</summary>
+        public static ImList<T> Cons<T>(this T head, ImList<T> tail = null) =>
+            (tail ?? ImList<T>.Empty).Prepend(head);
+
         /// <summary>Do some action on each element</summary>
-        public static void Do<T>(this ImList<T> source, Action<T> action)
+        public static void Do<T>(this ImList<T> list, Action<T> action)
         {
-            for (; !source.IsEmpty; source = source.Tail)
-                action(source.Head);
+            for (; !list.IsEmpty; list = list.Tail)
+                action(list.Head);
         }
 
         /// <summary>This a basically a Fold function, to address needs in Map, Filter, Reduce.</summary>
-        /// <typeparam name="T">Type of list item.</typeparam>
-        /// <typeparam name="R">Type of result.</typeparam>
-        /// <param name="source">List to fold.</param>
-        /// <param name="initialValue">From were to start.</param>
-        /// <param name="collect">Collects list item into result</param>
-        /// <returns>Return result or <paramref name="initialValue"/> for empty list.</returns>
-        public static R To<T, R>(this ImList<T> source, R initialValue, Func<T, R, R> collect)
+        public static R Fold<T, R>(this ImList<T> list, R initialResult, Func<T, R, R> reduce)
         {
-            if (source.IsEmpty)
-                return initialValue;
-            var value = initialValue;
-            for (; !source.IsEmpty; source = source.Tail)
-                value = collect(source.Head, value);
-            return value;
+            if (list.IsEmpty)
+                return initialResult;
+            var result = initialResult;
+            for (; !list.IsEmpty; list = list.Tail)
+                result = reduce(list.Head, result);
+            return result;
         }
 
         /// <summary>Form of fold function with element index for convenience.</summary>
-        /// <typeparam name="T">Type of list item.</typeparam>
-        /// <typeparam name="R">Type of result.</typeparam>
-        /// <param name="source">List to fold.</param>
-        /// <param name="initialValue">From were to start.</param>
-        /// <param name="collect">Collects list item into result</param>
-        /// <returns>Return result or <paramref name="initialValue"/> for empty list.</returns>
-        public static R To<T, R>(this ImList<T> source, R initialValue, Func<T, int, R, R> collect)
+        public static R Fold<T, R>(this ImList<T> list, R initialResult, Func<T, int, R, R> reduce)
         {
-            if (source.IsEmpty)
-                return initialValue;
-            var value = initialValue;
-            for (var i = 0; !source.IsEmpty; source = source.Tail)
-                value = collect(source.Head, i++, value);
+            if (list.IsEmpty)
+                return initialResult;
+            var value = initialResult;
+            for (var i = 0; !list.IsEmpty; list = list.Tail)
+                value = reduce(list.Head, i++, value);
             return value;
         }
 
         /// <summary>Returns new list in reverse order.</summary>
-        /// <typeparam name="T">List item type</typeparam> <param name="source">List to reverse.</param>
-        /// <returns>New list. If list consist on single element, then the same list.</returns>
-        public static ImList<T> Reverse<T>(this ImList<T> source)
-        {
-            if (source.IsEmpty || source.Tail.IsEmpty)
-                return source;
-            return source.To(ImList<T>.Empty, (it, result) => result.Prepend(it));
-        }
+        public static ImList<T> Reverse<T>(this ImList<T> list) =>
+            (list.IsEmpty || list.Tail.IsEmpty) ? list : list.Fold(ImList<T>.Empty, Cons);
 
         /// <summary>Maps the items from the first list to the result list.</summary>
-        /// <typeparam name="T">source item type.</typeparam> 
-        /// <typeparam name="R">result item type.</typeparam>
-        /// <param name="source">input list.</param> <param name="map">converter func.</param>
-        /// <returns>result list.</returns>
-        public static ImList<R> Map<T, R>(this ImList<T> source, Func<T, R> map)
-        {
-            return source.To(ImList<R>.Empty, (it, result) => result.Prepend(map(it))).Reverse();
-        }
+        public static ImList<R> Map<T, R>(this ImList<T> list, Func<T, R> map) =>
+            list.Fold(ImList<R>.Empty, (x, result) => map(x).Cons(result)).Reverse();
 
         /// <summary>Maps the items from the first list to the result list with item index.</summary>
-        /// <typeparam name="T">source item type.</typeparam> 
-        /// <typeparam name="R">result item type.</typeparam>
-        /// <param name="source">input list.</param> <param name="map">converter func.</param>
-        /// <returns>result list.</returns>
-        public static ImList<R> Map<T, R>(this ImList<T> source, Func<T, int, R> map)
-        {
-            return source.To(ImList<R>.Empty, (it, i, _) => _.Prepend(map(it, i))).Reverse();
-        }
+        public static ImList<R> Map<T, R>(this ImList<T> list, Func<T, int, R> map) =>
+            list.Fold(ImList<R>.Empty, (x, i, result) => map(x, i).Cons(result)).Reverse();
 
-        /// <summary>Copies list to array.</summary> 
-        /// <param name="source">list to convert.</param> 
-        /// <returns>Array with list items.</returns>
+        /// <summary>Copies list to array.</summary>
         public static T[] ToArray<T>(this ImList<T> source)
         {
             if (source.IsEmpty)

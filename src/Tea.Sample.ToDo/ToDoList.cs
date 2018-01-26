@@ -1,7 +1,6 @@
 ﻿using System.Text;
 using ImTools;
 using static Tea.UIParts;
-using static Tea.Styles;
 
 namespace Tea.Sample.ToDo
 {
@@ -32,7 +31,7 @@ namespace Tea.Sample.ToDo
             var s = new StringBuilder();
             s.Append("{NewItem=").Append(NewItem);
             s.Append(",Items=[");
-            Items.To(s, (it, i, _) => (i == 0 ? _ : _.Append(",")).Append(it.ToString()));
+            Items.Fold(s, (it, i, _) => (i == 0 ? _ : _.Append(",")).Append(it.ToString()));
             s.Append("]}");
             return s.ToString();
         }
@@ -65,11 +64,11 @@ namespace Tea.Sample.ToDo
                     : this;
 
             if (msg is RemoveItem removeItem)
-                return With(Items.Without(removeItem.ItemIndex));
+                return With(Items.RemoveAt(removeItem.ItemIndex));
 
             // propagate the rest of child mgs to child Update
             if (msg is ItemChanged<ToDoItem, ToDoList> itemChanged)
-                return With(Items.With(itemChanged.Index, it => it.Update(itemChanged.Msg)));
+                return With(Items.UpdateAt(itemChanged.Index, it => it.Update(itemChanged.Msg)));
 
             return this;
         }
@@ -79,7 +78,7 @@ namespace Tea.Sample.ToDo
                 column(Items.Map((item, i) =>
                     row(item.ViewIn(this, i),
                         button("remove", RemoveItem.It(i))))),
-                row(input(NewItem, EditNewItem.It, style(width(100))),
-                    button("Add", AddNewItem.It, style(isEnabled(true/*IsNewItemValid*/)))));
+                row(input(NewItem, EditNewItem.It)),
+                    button("Add", AddNewItem.It));
     }
 }
