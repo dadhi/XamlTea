@@ -674,9 +674,11 @@ namespace ImTools
     /// <summary>Extension methods providing basic operations on a list.</summary>
     public static class ImList
     {
+        /// <summary>Constructs list of one element</summary>
+        public static ImList<T> Cons<T>(this T head) => ImList<T>.Empty.Prepend(head);
+
         /// <summary>Constructs list from head and tail</summary>
-        public static ImList<T> Cons<T>(this T head, ImList<T> tail = null) =>
-            (tail ?? ImList<T>.Empty).Prepend(head);
+        public static ImList<T> Cons<T>(this T head, ImList<T> tail) => tail.Prepend(head);
 
         /// <summary>Do some action on each element</summary>
         public static void Do<T>(this ImList<T> list, Action<T> action)
@@ -713,11 +715,11 @@ namespace ImTools
 
         /// <summary>Maps the items from the first list to the result list.</summary>
         public static ImList<R> Map<T, R>(this ImList<T> list, Func<T, R> map) =>
-            list.Fold(ImList<R>.Empty, (x, result) => map(x).Cons(result)).Reverse();
+            list.Fold(ImList<R>.Empty, (x, xs) => map(x).Cons(xs)).Reverse();
 
         /// <summary>Maps the items from the first list to the result list with item index.</summary>
         public static ImList<R> Map<T, R>(this ImList<T> list, Func<T, int, R> map) =>
-            list.Fold(ImList<R>.Empty, (x, i, result) => map(x, i).Cons(result)).Reverse();
+            list.Fold(ImList<R>.Empty, (x, i, xs) => map(x, i).Cons(xs)).Reverse();
 
         /// <summary>Copies list to array.</summary>
         public static T[] ToArray<T>(this ImList<T> source)

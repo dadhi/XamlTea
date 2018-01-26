@@ -1,5 +1,8 @@
 ﻿using System;
 using ImTools;
+using static Tea.Unit;
+using static Tea.ImToolsExt;
+using static Tea.UIDiff;
 // ReSharper disable InconsistentNaming
 #pragma warning disable 659
 
@@ -99,6 +102,7 @@ namespace Tea
         public class Input : UI
         {
             public readonly Ref<Ref<Action<string>>> Changed;
+
             public Input(string input, Ref<Ref<Action<string>>> changed) : base(input) =>
                 Changed = changed;
         }
@@ -137,41 +141,35 @@ namespace Tea
     }
 
     /// UI component update and event redirection.
-    public abstract class UIUpdate
+    public abstract class UIDiff
     {
         public readonly ImList<int> Path;
+        protected UIDiff(ImList<int> path) => Path = path;
 
-        protected UIUpdate(ImList<int> path)
-        {
-            Path = path;
-        }
-
-        public class Insert : UIUpdate
+        public class Insert : UIDiff
         {
             public readonly UI UI;
             public Insert(ImList<int> path, UI ui) : base(path) => UI = ui;
         }
 
-        public class Update : UIUpdate
+        public class Update : UIDiff
         {
             public readonly UI UI;
-
             public Update(ImList<int> path, UI ui) : base(path) => UI = ui;
         }
 
-        public class Replace : UIUpdate
+        public class Replace : UIDiff
         {
             public readonly UI UI;
-
             public Replace(ImList<int> path, UI ui) : base(path) => UI = ui;
         }
 
-        public class Remove : UIUpdate
+        public class Remove : UIDiff
         {
             public Remove(ImList<int> path) : base(path) { }
         }
 
-        public class Event : UIUpdate
+        public class Event : UIDiff
         {
             public readonly Action<Unit> Send;
             public Event(Action<Unit> send) : base(ImList<int>.Empty) => Send = send;
@@ -228,13 +226,13 @@ namespace Tea
             where TItem : IComponent<TItem> => 
             item.View().MapMsg(msg => msg.Lift<TItem, THolder>(itemIndex));
 
-        public static IMsg<THolder> Lift<TItem, THolder>(this IMsg<TItem> itemMsg, int itemIndex)
-            => new ItemChanged<TItem, THolder>(itemIndex, itemMsg);
+        public static IMsg<THolder> Lift<TItem, THolder>(this IMsg<TItem> itemMsg, int itemIndex) =>
+            new ItemChanged<TItem, THolder>(itemIndex, itemMsg);
     }
 
     public interface INativeUI
     {
-        void Apply(ImList<UIUpdate> uiUpdates);
+        void ApplyDiffs(ImList<UIDiff> diffs);
     }
 
     public static class UIParts
@@ -269,19 +267,20 @@ namespace Tea
         public static UI<TMsg> panel<TMsg>(Layout layout, ImList<UI<TMsg>> uis)
         {
             var panel = new UI<TMsg>(new UI.Panel(layout, uis.Map(x => x.BaseUI)), Event.Empty);
-            uis.Do(x => x.Send = panel.Send);
+            void Send(TMsg m) => panel.Send(m);
+            uis.Do(x => x.Send = Send);
             return panel;
         }
 
         public static UI<TMsg> row<TMsg>(ImList<UI<TMsg>> uis) =>
             panel(Layout.Horizontal, uis);
 
-        public static UI<TMsg> row<TMsg>(params UI<TMsg>[] uis) => row(uis.list());
+        public static UI<TMsg> row<TMsg>(params UI<TMsg>[] uis) => row(list(uis));
 
         public static UI<TMsg> column<TMsg>(ImList<UI<TMsg>> uis) =>
             panel(Layout.Vertical, uis);
 
-        public static UI<TMsg> column<TMsg>(params UI<TMsg>[] uis) => column(uis.list());
+        public static UI<TMsg> column<TMsg>(params UI<TMsg>[] uis) => column(list(uis));
     }
 
     public static class UIApp
@@ -297,94 +296,78 @@ namespace Tea
 
         ///<summary>Returns a list of UI updates from two UI components.
         /// To ensure correct insert and removal sequence where the insert/remove index are existing.</summary> 
-        public static ImList<UIUpdate> DiffToUpdates<TMsg1, TMsg2>(this UI<TMsg1> oldUI, UI<TMsg2> newUI) =>
-            Diff(ImList<UIUpdate>.Empty, oldUI.BaseUI, newUI.BaseUI, path: ImList<int>.Empty, index: 0);
+        public static ImList<UIDiff> Diff<TMsg1, TMsg2>(this UI<TMsg1> oldUI, UI<TMsg2> newUI) =>
+            Diff(ImList<UIDiff>.Empty, oldUI.BaseUI, newUI.BaseUI, path: ImList<int>.Empty, index: 0);
 
-        private static ImList<UIUpdate> Diff(this ImList<UIUpdate> updates,
+        private static ImList<UIDiff> Diff(this ImList<UIDiff> diffs,
             UI oldUI, UI newUI, ImList<int> path, int index)
         {
             if (ReferenceEquals(oldUI, newUI))
-                return updates;
+                return diffs;
 
             if (oldUI is UI.Text && newUI is UI.Text)
-            {
-                if (oldUI.Content != newUI.Content)
-                    updates = updates.Prepend(new UIUpdate.Update(path, newUI));
-                return updates;
-            }
+                return oldUI.Content == newUI.Content ? diffs : new Update(path, newUI).Cons(diffs);
 
             if (oldUI is UI.Button oldButton && newUI is UI.Button newButton)
             {
                 if (oldButton.Content != newButton.Content)
-                    updates = updates.Prepend(new UIUpdate.Update(path, newButton));
-                return updates.Prepend(new UIUpdate.Event(UpdateEvent(oldButton.Clicked, newButton.Clicked)));
+                    diffs = new Update(path, newButton).Cons(diffs);
+                return new UIDiff.Event(oldButton.Clicked.MoveTo(newButton.Clicked)).Cons(diffs);
             }
 
             if (oldUI is UI.Input oldInput && newUI is UI.Input newInput)
             {
                 if (oldInput.Content != newInput.Content)
-                    updates = updates.Prepend(new UIUpdate.Update(path, newInput));
-                return updates.Prepend(new UIUpdate.Event(UpdateEvent(oldInput.Changed, newInput.Changed)));
+                    diffs = new Update(path, newInput).Cons(diffs);
+                return new UIDiff.Event(oldInput.Changed.MoveTo(newInput.Changed)).Cons(diffs);
             }
 
-            if (oldUI is UI.CheckBox oldCheckbox && newUI is UI.CheckBox newCheckbox)
+            if (oldUI is UI.CheckBox oldCheck && newUI is UI.CheckBox newCheck)
             {
-                if (oldCheckbox.Content != newCheckbox.Content ||
-                    oldCheckbox.IsChecked != newCheckbox.IsChecked)
-                    updates = updates.Prepend(new UIUpdate.Update(path, newCheckbox));
-                return updates.Prepend(new UIUpdate.Event(UpdateEvent(oldCheckbox.Changed, newCheckbox.Changed)));
+                if (oldCheck.Content != newCheck.Content || oldCheck.IsChecked != newCheck.IsChecked)
+                    diffs = new Update(path, newCheck).Cons(diffs);
+                return new UIDiff.Event(oldCheck.Changed.MoveTo(newCheck.Changed)).Cons(diffs);
             }
 
             if (oldUI is UI.Panel oldPanel && newUI is UI.Panel newPanel)
             {
-                // if layout changed then fully replace
                 if (oldPanel.Layout != newPanel.Layout)
-                    return updates.Prepend(new UIUpdate.Replace(path, newPanel));
+                    return new Replace(path, newPanel).Cons(diffs);
 
                 var oldParts = oldPanel.Parts;
                 var newParts = newPanel.Parts;
-
-                // if both empty
                 if (oldParts.IsEmpty && newParts.IsEmpty)
-                    return updates;
+                    return diffs;
 
-                // for each new child UI do insert
                 if (oldParts.IsEmpty)
-                    return newParts.Fold(updates,
-                        (ui, i, d) => d.Prepend(new UIUpdate.Insert(path.Prepend(index + i), ui)));
+                    return newParts.Fold(diffs, (ui, i, d) => new Insert((index + i).Cons(path), ui).Cons(d));
 
-                // remove old ui children
                 if (newParts.IsEmpty)
-                    return oldParts.Fold(updates,
-                        (ui, i, d) => d.Prepend(new UIUpdate.Remove(path.Prepend(index + i))));
+                    return oldParts.Fold(diffs, (_, i, d) => new Remove((index + i).Cons(path)).Cons(d));
 
-                updates = updates.Diff(oldParts.Head, newParts.Head, path.Prepend(index), 0);
+                diffs = diffs.Diff(oldParts.Head, newParts.Head, path.Prepend(index), 0);
+
                 if (oldParts.Tail.IsEmpty && newParts.Tail.IsEmpty)
-                    return updates;
+                    return diffs;
 
                 // todo: optimize by removing the re-creation of Panel just for recursion
-                return updates.Diff(
+                return diffs.Diff(
                     new UI.Panel(oldPanel.Layout, oldParts.Tail),
                     new UI.Panel(newPanel.Layout, newParts.Tail),
                     path, index + 1);
             }
 
-            // otherwise just replace
-            return updates.Prepend(new UIUpdate.Replace(path, newUI));
+            return new Replace(path, newUI).Cons(diffs);
         }
 
         // Point first ref to second ref value.value
-        private static Action<Unit> UpdateEvent<T>(Ref<Ref<T>> evt1, Ref<Ref<T>> evt2)
-            where T : class
+        private static Action<Unit> MoveTo<T>(this Ref<Ref<T>> ev1, Ref<Ref<T>> ev2) where T : class => _ =>
         {
-            return _ =>
-            {
-                //let ev = !e1 in ev:=!(!e2); e2:=ev
-                var ref1Value = evt1.Value;
-                ref1Value.Swap(evt2.Value.Value);
-                evt2.Swap(ref1Value);
-            };
-        }
+            //let ev = !e1 in ev:=!(!e2); e2:=ev
+            var ev1Val = ev1.Value;
+            ev1Val.Swap(ev2.Value.Value);
+            ev2.Swap(ev1Val);
+        };
 
         /// <summary>Runs Model-View-Update loop, e.g. Init->View->Update->View->Update->View... </summary>
         public static void Run<T>(INativeUI nativeUI, IComponent<T> component) where T : IComponent<T>
@@ -395,18 +378,15 @@ namespace Tea
                 var newUI = newModel.View();
                 newUI.Send = msg => UpdateViewLoop(newModel, newUI, msg);
 
-                var uiUpdates = ui.DiffToUpdates(newUI);
-
-                for (var items = uiUpdates; !items.IsEmpty; items = items.Tail)
-                    (items.Head as UIUpdate.Event)?.Send(Unit.unit);
-
-                nativeUI.Apply(uiUpdates);
+                var diffs = ui.Diff(newUI);
+                diffs.Do(d => (d as UIDiff.Event)?.Send(unit));
+                nativeUI.ApplyDiffs(diffs);
             }
 
             // Render and insert initial UI from the model
             var initialUI = component.View();
             initialUI.Send = msg => UpdateViewLoop(component, initialUI, msg);
-            nativeUI.Apply(ImList<UIUpdate>.Empty.Prepend(new UIUpdate.Insert(ImList<int>.Empty, initialUI.BaseUI)));
+            nativeUI.ApplyDiffs(new Insert(ImList<int>.Empty, initialUI.BaseUI).Cons<UIDiff>());
         }
     }
 }

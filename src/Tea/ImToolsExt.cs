@@ -11,13 +11,13 @@ namespace Tea
 
     public static class ImToolsExt
     {
-        public static ImList<T> list<T>(this T[] items)
+        public static ImList<T> list<T>(params T[] items)
         {
             if (items.IsNullOrEmpty())
                 return ImList<T>.Empty;
             var list = ImList<T>.Empty;
             for (var i = items.Length - 1; i >= 0; --i)
-                list = list.Prepend(items[i]);
+                list = items[i].Cons(list);
             return list;
         }
 
@@ -73,13 +73,19 @@ namespace Tea
             head.Reverse().Zip(tail);
 
         /// <summary> <code>list(1, 2, 3).UpdateAt(1, x => x*2) => list(1, 4, 3)</code>
-        /// The method will return original list for out of bound index. So you can check that.</summary>
+        /// The method will return original list for out of bound index. So you can check that.
+        /// This also will return original list when updated element is equal to old one.</summary>
         public static ImList<T> UpdateAt<T>(this ImList<T> list, int i, Func<T, T> update)
         {
             if (list.IsEmpty || i < 0)
                 return list;
             var (revHead, tail) = list.Unzip(i);
-            return tail.IsEmpty ? list : revHead.Zip(update(tail.Head).Cons(tail.Tail));
+            if (tail.IsEmpty)
+                return list;
+            var it = update(tail.Head);
+            if (ReferenceEquals(it, tail.Head) || it != null && it.Equals(tail.Head))
+                return list;
+            return revHead.Zip(it.Cons(tail.Tail));
         }
 
         /// <summary> <code>list(1, 2, 3).RemoveAt(1) => list(1, 3)</code>

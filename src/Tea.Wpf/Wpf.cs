@@ -14,22 +14,22 @@ namespace Tea.Wpf
         private WpfUI(ContentControl rootControl) => _rootControl = rootControl;
 
         /// <summary>Applies the updates.</summary>
-        public void Apply(ImList<UIUpdate> uiUpdates) =>
-            uiUpdates.Do(update => _rootControl.Dispatcher.Invoke(() => Apply(update, _rootControl)));
+        public void ApplyDiffs(ImList<UIDiff> diffs) =>
+            diffs.Do(update => _rootControl.Dispatcher.Invoke(() => Apply(update, _rootControl)));
 
-        private static void Apply(UIUpdate uiUpdate, ContentControl root)
+        private static void Apply(UIDiff uiDiff, ContentControl root)
         {
-            var path = uiUpdate.Path;
-            switch (uiUpdate)
+            var path = uiDiff.Path;
+            switch (uiDiff)
             {
-                case UIUpdate.Insert insert:
+                case UIDiff.Insert insert:
                     if (path.IsEmpty)
                         root.Content = CreateUI(insert.UI);
                     else
                         Locate(path.Tail, root).Children.Insert(path.Head, CreateUI(insert.UI));
                     break;
 
-                case UIUpdate.Update update:
+                case UIDiff.Update update:
                     var elem = path.IsEmpty
                         ? (UIElement)root.Content
                         : Locate(path.Tail, root).Children[path.Head];
@@ -37,7 +37,7 @@ namespace Tea.Wpf
                     Update(update.UI, elem);
                     break;
 
-                case UIUpdate.Replace replace:
+                case UIDiff.Replace replace:
                     if (path.IsEmpty)
                         root.Content = CreateUI(replace.UI);
                     else
@@ -48,12 +48,12 @@ namespace Tea.Wpf
                     }
                     break;
 
-                case UIUpdate.Remove _:
+                case UIDiff.Remove _:
                     if (!path.IsEmpty)
                         Locate(path.Tail, root).Children.RemoveAt(path.Head);
                     break;
 
-                case UIUpdate.Event _:
+                case UIDiff.Event _:
                     // do nothing for events because they are raised before applying update in main MVU loop
                     break;
             }
@@ -95,8 +95,8 @@ namespace Tea.Wpf
                 var orientation = panel.Layout == Layout.Vertical ? Orientation.Vertical : Orientation.Horizontal;
                 var elem = new StackPanel { Orientation = orientation };
 
-                var parts = panel.Parts.Map(CreateUI);
-                parts.Do(p => elem.Children.Add(p));
+                var children = panel.Parts.Map(CreateUI);
+                children.Do(x => elem.Children.Add(x));
 
                 return elem;
             }

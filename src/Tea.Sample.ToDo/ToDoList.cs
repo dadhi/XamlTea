@@ -1,6 +1,7 @@
 ﻿using System.Text;
 using ImTools;
 using static Tea.UIParts;
+using static Tea.ImToolsExt;
 
 namespace Tea.Sample.ToDo
 {
@@ -10,7 +11,7 @@ namespace Tea.Sample.ToDo
         public readonly string NewItem;
         public readonly bool IsNewItemValid;
 
-        public ToDoList(ImList<ToDoItem> items, string newItem)
+        public ToDoList(ImList<ToDoItem> items, string newItem = "")
         {
             Items = items;
             NewItem = newItem;
@@ -18,13 +19,7 @@ namespace Tea.Sample.ToDo
         }
 
         public static ToDoList Init() => 
-            new ToDoList(ImList<ToDoItem>.Empty
-                .Prepend(new ToDoItem("foo"))
-                .Prepend(new ToDoItem("bar", true)),
-            string.Empty);
-
-        public ToDoList With(ImList<ToDoItem> items) => 
-            new ToDoList(items, NewItem);
+            new ToDoList(list(new ToDoItem("foo"), new ToDoItem("bar", true)));
 
         public override string ToString()
         {
@@ -60,15 +55,15 @@ namespace Tea.Sample.ToDo
 
             if (msg is AddNewItem)
                 return IsNewItemValid
-                    ? new ToDoList(Items.Prepend(new ToDoItem(NewItem)), string.Empty)
+                    ? new ToDoList(new ToDoItem(NewItem).Cons(Items))
                     : this;
 
             if (msg is RemoveItem removeItem)
-                return With(Items.RemoveAt(removeItem.ItemIndex));
+                return new ToDoList(Items.RemoveAt(removeItem.ItemIndex), NewItem);
 
             // propagate the rest of child mgs to child Update
             if (msg is ItemChanged<ToDoItem, ToDoList> itemChanged)
-                return With(Items.UpdateAt(itemChanged.Index, it => it.Update(itemChanged.Msg)));
+                return new ToDoList(Items.UpdateAt(itemChanged.Index, x => x.Update(itemChanged.Msg)), NewItem);
 
             return this;
         }
@@ -76,9 +71,7 @@ namespace Tea.Sample.ToDo
         public UI<IMsg<ToDoList>> View() => 
             column(
                 column(Items.Map((item, i) =>
-                    row(item.ViewIn(this, i),
-                        button("remove", RemoveItem.It(i))))),
-                row(input(NewItem, EditNewItem.It)),
-                    button("Add", AddNewItem.It));
+                    row(item.ViewIn(this, i), button("remove", RemoveItem.It(i))))),
+                row(input(NewItem, EditNewItem.It)), button("Add", AddNewItem.It));
     }
 }

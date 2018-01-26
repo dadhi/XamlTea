@@ -109,16 +109,20 @@ module UI =
         let rec diff ui1 ui2 path index diffs =
             match ui1,ui2 with
             | _,_ when obj.ReferenceEquals(ui1,ui2) -> diffs
+
             |Text t1,Text t2 -> if t1=t2 then diffs else UpdateUI(path,ui2)::diffs
+
             |Button (t1,e1),Button (t2,e2) -> if t1=t2 then EventUI(update e1 e2)::diffs else EventUI(update e1 e2)::UpdateUI(path,ui2)::diffs
+
             |Input (t1,e1),Input (t2,e2) -> if t1=t2 then EventUI(update e1 e2)::diffs else EventUI(update e1 e2)::UpdateUI(path,ui2)::diffs
+
             |Button _,Button _ |Input _,Input _ -> UpdateUI(path,ui2)::diffs
 
             |Div (l1,_),Div (l2,_) when l1<>l2 -> ReplaceUI(path,ui2)::diffs
 
             |Div (_,[]),Div (_,[]) -> diffs
 
-            |Div (_,[]),Div (_,l) -> 
+            |Div (_,[]),Div (_,l) ->
                 List.fold (fun (i,diffs) ui -> i+1,InsertUI(i::path,ui)::diffs) (index,diffs) l |> snd
             
             |Div (_,l),Div (_,[]) -> 
