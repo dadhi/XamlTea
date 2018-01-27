@@ -94,6 +94,8 @@ namespace Tea
         public readonly string Content;
         private UI(string content) => Content = content;
 
+        // todo: Add equals to be used in Diff
+
         public class Text : UI
         {
             public Text(string text) : base(text) { }
@@ -297,10 +299,10 @@ namespace Tea
         ///<summary>Returns a list of UI updates from two UI components.
         /// To ensure correct insert and removal sequence where the insert/remove index are existing.</summary> 
         public static ImList<UIDiff> Diff<TMsg1, TMsg2>(this UI<TMsg1> oldUI, UI<TMsg2> newUI) =>
-            Diff(ImList<UIDiff>.Empty, oldUI.BaseUI, newUI.BaseUI, path: ImList<int>.Empty, index: 0);
+            Diff(ImList<UIDiff>.Empty, oldUI.BaseUI, newUI.BaseUI, path: ImList<int>.Empty, pos: 0);
 
         private static ImList<UIDiff> Diff(this ImList<UIDiff> diffs,
-            UI oldUI, UI newUI, ImList<int> path, int index)
+            UI oldUI, UI newUI, ImList<int> path, int pos)
         {
             if (ReferenceEquals(oldUI, newUI))
                 return diffs;
@@ -326,38 +328,35 @@ namespace Tea
             {
                 if (oldCheck.Content != newCheck.Content || oldCheck.IsChecked != newCheck.IsChecked)
                     diffs = new Update(path, newCheck).Cons(diffs);
-                return new UIDiff.Event(oldCheck.Changed.MoveTo(newCheck.Changed)).Cons(diffs);
+                return new UIDiff.Event(oldCheck.Changed.MoveTo(newCheck.Changed)).Cons(
+                    // todo: insert code here when the Equals is available
+                    diffs);
             }
 
             if (oldUI is UI.Panel oldPanel && newUI is UI.Panel newPanel)
             {
-                if (oldPanel.Layout != newPanel.Layout)
-                    return new Replace(path, newPanel).Cons(diffs);
-
-                var oldParts = oldPanel.Parts;
-                var newParts = newPanel.Parts;
-                if (oldParts.IsEmpty && newParts.IsEmpty)
-                    return diffs;
-
-                if (oldParts.IsEmpty)
-                    return newParts.Fold(diffs, (ui, i, d) => new Insert((index + i).Cons(path), ui).Cons(d));
-
-                if (newParts.IsEmpty)
-                    return oldParts.Fold(diffs, (_, i, d) => new Remove((index + i).Cons(path)).Cons(d));
-
-                diffs = diffs.Diff(oldParts.Head, newParts.Head, path.Prepend(index), 0);
-
-                if (oldParts.Tail.IsEmpty && newParts.Tail.IsEmpty)
-                    return diffs;
-
-                // todo: optimize by removing the re-creation of Panel just for recursion
-                return diffs.Diff(
-                    new UI.Panel(oldPanel.Layout, oldParts.Tail),
-                    new UI.Panel(newPanel.Layout, newParts.Tail),
-                    path, index + 1);
+                return oldPanel.Layout == newPanel.Layout 
+                    ? diffs.Diff(oldPanel.Parts, newPanel.Parts, path, pos) 
+                    : new Replace(path, newPanel).Cons(diffs);
             }
 
             return new Replace(path, newUI).Cons(diffs);
+        }
+
+        private static ImList<UIDiff> Diff(this ImList<UIDiff> diffs,
+            ImList<UI> oldParts, ImList<UI> newParts, ImList<int> path, int pos)
+        {
+            if (oldParts.IsEmpty && newParts.IsEmpty)
+                return diffs;
+
+            if (oldParts.IsEmpty)
+                return newParts.Fold(diffs, (ui, i, d) => new Insert((pos + i).Cons(path), ui).Cons(d));
+
+            if (newParts.IsEmpty)
+                return oldParts.Fold(diffs, (_, i, d) => new Remove((pos + i).Cons(path)).Cons(d));
+
+            diffs = diffs.Diff(oldParts.Head, newParts.Head, pos.Cons(path), 0);
+            return  diffs.Diff(oldParts.Tail, newParts.Tail, path, pos + 1);
         }
 
         // Point first ref to second ref value.value
