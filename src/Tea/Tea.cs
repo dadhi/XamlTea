@@ -8,13 +8,13 @@ using static Tea.UIDiff;
 
 namespace Tea
 {
+    public delegate void Event<in T>(T msg);
+
     public static class Event
     {
         public static void Empty<TMsg>(TMsg _) { }
-        public static Ref<Ref<Action<TMsg>>> Of<TMsg>(Action<TMsg> send) => Ref.Of(Ref.Of(send));
+        public static Ref<Ref<Event<T>>> Of<T>(Event<T> send) => Ref.Of(Ref.Of(send));
     }
-
-    public enum Layout { Horizontal, Vertical }
 
     //public abstract class Style
     //{
@@ -89,44 +89,60 @@ namespace Tea
     //    }
     //}
 
+    public enum Layout { Horizontal, Vertical }
+
     public abstract class UI
     {
-        public readonly string Content;
-        private UI(string content) => Content = content;
-
-        // todo: Add equals to be used in Diff
-
         public class Text : UI
         {
-            public Text(string text) : base(text) { }
+            public readonly string Content;
+            public Text(string text) => Content = text;
+
+            public override string ToString() => $"Text('{Content}')";
         }
 
         public class Input : UI
         {
-            public readonly Ref<Ref<Action<string>>> Changed;
+            public readonly string Content;
+            public readonly Ref<Ref<Event<string>>> Changed;
 
-            public Input(string input, Ref<Ref<Action<string>>> changed) : base(input) =>
+            public Input(string content, Ref<Ref<Event<string>>> changed)
+            {
+                Content = content;
                 Changed = changed;
+            }
+
+            public override string ToString() => $"Input('{Content}')";
         }
 
         public class Button : UI
         {
-            public readonly Ref<Ref<Action<Unit>>> Clicked;
+            public readonly string Label;
+            public readonly Ref<Ref<Event<Unit>>> Clicked;
 
-            public Button(string label, Ref<Ref<Action<Unit>>> clicked) : base(label) => 
+            public Button(string label, Ref<Ref<Event<Unit>>> clicked)
+            {
+                Label = label;
                 Clicked = clicked;
+            }
+
+            public override string ToString() => $"Button('{Label}')";
         }
 
-        public class CheckBox : UI
+        public class Check : UI
         {
+            public readonly string Label;
             public readonly bool IsChecked;
-            public readonly Ref<Ref<Action<bool>>> Changed;
+            public readonly Ref<Ref<Event<bool>>> Changed;
 
-            public CheckBox(string label, bool isChecked, Ref<Ref<Action<bool>>> changed) : base(label)
+            public Check(string label, bool isChecked, Ref<Ref<Event<bool>>> changed)
             {
+                Label = label;
                 IsChecked = isChecked;
                 Changed = changed;
             }
+
+            public override string ToString() => $"Check({IsChecked},'{Label}')";
         }
 
         public class Panel : UI
@@ -134,11 +150,13 @@ namespace Tea
             public readonly Layout Layout;
             public readonly ImList<UI> Parts;
 
-            public Panel(Layout layout, ImList<UI> parts) : base(null)
+            public Panel(Layout layout, ImList<UI> parts)
             {
                 Layout = layout;
                 Parts = parts;
             }
+
+            public override string ToString() => (Layout == Layout.Vertical ? "Col(" : "Row(") + Parts + ")";
         }
     }
 
@@ -258,10 +276,10 @@ namespace Tea
             return ui;
         }
 
-        public static UI<TMsg> checkbox<TMsg>(string text, bool isChecked, Func<bool, TMsg> changed)
+        public static UI<TMsg> check<TMsg>(string text, bool isChecked, Func<bool, TMsg> changed)
         {
             var ev = Event.Of<bool>(Event.Empty);
-            var ui = new UI<TMsg>(new UI.CheckBox(text, isChecked, ev), Event.Empty);
+            var ui = new UI<TMsg>(new UI.Check(text, isChecked, ev), Event.Empty);
             ev.Value.Swap(check => ui.Send(changed(check)));
             return ui;
         }
@@ -298,47 +316,41 @@ namespace Tea
 
         ///<summary>Returns a list of UI updates from two UI components.
         /// To ensure correct insert and removal sequence where the insert/remove index are existing.</summary> 
-        public static ImList<UIDiff> Diff<TMsg1, TMsg2>(this UI<TMsg1> oldUI, UI<TMsg2> newUI) =>
-            Diff(ImList<UIDiff>.Empty, oldUI.BaseUI, newUI.BaseUI, path: ImList<int>.Empty, pos: 0);
+        public static ImList<UIDiff> Diff<TMsg1, TMsg2>(this UI<TMsg1> ui, UI<TMsg2> newUI) =>
+            Diff(ImList<UIDiff>.Empty, ui.BaseUI, newUI.BaseUI, path: ImList<int>.Empty, pos: 0);
 
-        private static ImList<UIDiff> Diff(this ImList<UIDiff> diffs,
-            UI oldUI, UI newUI, ImList<int> path, int pos)
+        private static ImList<UIDiff> Diff(this ImList<UIDiff> diffs, UI ui, UI newUI, ImList<int> path, int pos)
         {
-            if (ReferenceEquals(oldUI, newUI))
+            if (ReferenceEquals(ui, newUI))
                 return diffs;
 
-            if (oldUI is UI.Text && newUI is UI.Text)
-                return oldUI.Content == newUI.Content ? diffs : new Update(path, newUI).Cons(diffs);
+            if (ui is UI.Text text && newUI is UI.Text newText)
+                return text.Content == newText.Content ? diffs : new Update(path, newUI).Cons(diffs);
 
-            if (oldUI is UI.Button oldButton && newUI is UI.Button newButton)
+            if (ui is UI.Button btn && newUI is UI.Button newBtn)
             {
-                if (oldButton.Content != newButton.Content)
-                    diffs = new Update(path, newButton).Cons(diffs);
-                return new UIDiff.Event(oldButton.Clicked.MoveTo(newButton.Clicked)).Cons(diffs);
+                if (btn.Label != newBtn.Label)
+                    diffs = new Update(path, newBtn).Cons(diffs);
+                return new UIDiff.Event(btn.Clicked.Swap(newBtn.Clicked)).Cons(diffs);
             }
 
-            if (oldUI is UI.Input oldInput && newUI is UI.Input newInput)
+            if (ui is UI.Input input && newUI is UI.Input newInput)
             {
-                if (oldInput.Content != newInput.Content)
+                if (input.Content != newInput.Content)
                     diffs = new Update(path, newInput).Cons(diffs);
-                return new UIDiff.Event(oldInput.Changed.MoveTo(newInput.Changed)).Cons(diffs);
+                return new UIDiff.Event(input.Changed.Swap(newInput.Changed)).Cons(diffs);
             }
 
-            if (oldUI is UI.CheckBox oldCheck && newUI is UI.CheckBox newCheck)
-            {
-                if (oldCheck.Content != newCheck.Content || oldCheck.IsChecked != newCheck.IsChecked)
-                    diffs = new Update(path, newCheck).Cons(diffs);
-                return new UIDiff.Event(oldCheck.Changed.MoveTo(newCheck.Changed)).Cons(
-                    // todo: insert code here when the Equals is available
-                    diffs);
-            }
+            if (ui is UI.Check check && newUI is UI.Check newCheck)
+                return new UIDiff.Event(check.Changed.Swap(newCheck.Changed))
+                    .Cons(check.IsChecked != newCheck.IsChecked || check.Label != newCheck.Label 
+                        ? new Update(path, newCheck).Cons(diffs) 
+                        : diffs);
 
-            if (oldUI is UI.Panel oldPanel && newUI is UI.Panel newPanel)
-            {
-                return oldPanel.Layout == newPanel.Layout 
-                    ? diffs.Diff(oldPanel.Parts, newPanel.Parts, path, pos) 
+            if (ui is UI.Panel panel && newUI is UI.Panel newPanel)
+                return panel.Layout == newPanel.Layout
+                    ? diffs.Diff(panel.Parts, newPanel.Parts, path, pos)
                     : new Replace(path, newPanel).Cons(diffs);
-            }
 
             return new Replace(path, newUI).Cons(diffs);
         }
@@ -355,30 +367,33 @@ namespace Tea
             if (newParts.IsEmpty)
                 return oldParts.Fold(diffs, (_, i, d) => new Remove((pos + i).Cons(path)).Cons(d));
 
-            diffs = diffs.Diff(oldParts.Head, newParts.Head, pos.Cons(path), 0);
-            return  diffs.Diff(oldParts.Tail, newParts.Tail, path, pos + 1);
+            return  diffs
+                .Diff(oldParts.Head, newParts.Head, pos.Cons(path), 0)
+                .Diff(oldParts.Tail, newParts.Tail, path, pos + 1);
         }
 
         // Point first ref to second ref value.value
-        private static Action<Unit> MoveTo<T>(this Ref<Ref<T>> ev1, Ref<Ref<T>> ev2) where T : class => _ =>
+        private static Action<Unit> Swap<T>(this Ref<Ref<T>> e1, Ref<Ref<T>> e2) where T : class => _ =>
         {
             //let ev = !e1 in ev:=!(!e2); e2:=ev
-            var ev1Val = ev1.Value;
-            ev1Val.Swap(ev2.Value.Value);
-            ev2.Swap(ev1Val);
+            var e1Val = e1.Value;
+            e1Val.Swap(e2.Value.Value);
+            e2.Swap(e1Val);
         };
 
         /// <summary>Runs Model-View-Update loop, e.g. Init->View->Update->View->Update->View... </summary>
         public static void Run<T>(INativeUI nativeUI, IComponent<T> component) where T : IComponent<T>
         {
-            void UpdateViewLoop(IComponent<T> model, UI<IMsg<T>> ui, IMsg<T> message)
+            void UpdateViewLoop(IComponent<T> comp, UI<IMsg<T>> ui, IMsg<T> message)
             {
-                var newModel = model.Update(message);
-                var newUI = newModel.View();
-                newUI.Send = msg => UpdateViewLoop(newModel, newUI, msg);
+                var newComp = comp.Update(message);
+                var newUI = newComp.View();
+                newUI.Send = msg => UpdateViewLoop(newComp, newUI, msg);
 
                 var diffs = ui.Diff(newUI);
+
                 diffs.Do(d => (d as UIDiff.Event)?.Send(unit));
+
                 nativeUI.ApplyDiffs(diffs);
             }
 

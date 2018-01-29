@@ -21,6 +21,13 @@ namespace Tea
             return list;
         }
 
+        public static void Deconstruct<T>(this ImList<T> list, out T head, out ImList<T> tail, out bool isEmpty)
+        {
+            head = list.Head;
+            tail = list.Tail;
+            isEmpty = list.IsEmpty;
+        }
+
         public static T GetAt<T>(this ImList<T> list, int i, T @default = default)
         {
             if (list.IsEmpty)

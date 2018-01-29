@@ -24,9 +24,9 @@ namespace Tea.Sample.ToDo
         public override string ToString()
         {
             var s = new StringBuilder();
-            s.Append("{NewItem=").Append(NewItem);
+            s.Append("{NewItem='").Append(NewItem).Append("'");
             s.Append(",Items=[");
-            Items.Fold(s, (it, i, _) => (i == 0 ? _ : _.Append(",")).Append(it.ToString()));
+            Items.Fold(s, (it, i, _) => (i == 0 ? _ : _.Append(",(")).Append(it.ToString()).Append(')'));
             s.Append("]}");
             return s.ToString();
         }

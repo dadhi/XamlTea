@@ -13,10 +13,7 @@ namespace Tea.Sample.ToDo
             IsDone = isDone;
         }
 
-        public override string ToString()
-        {
-            return $"{{Text={Text},IsDone={IsDone}}}";
-        }
+        public override string ToString() => "'" + Text + (IsDone ? "';done" : "'");
 
         public class IsDoneChanged : IMsg<ToDoItem>
         {
@@ -42,9 +39,9 @@ namespace Tea.Sample.ToDo
         public UI<IMsg<ToDoItem>> View()
         {
             return IsDone 
-                ? checkbox(Text, IsDone, IsDoneChanged.It)
+                ? check(Text, IsDone, IsDoneChanged.It)
                 : row(
-                    checkbox(string.Empty, IsDone, IsDoneChanged.It),
+                    check(string.Empty, IsDone, IsDoneChanged.It),
                     input(Text, TextChanged.It));
         }
     }

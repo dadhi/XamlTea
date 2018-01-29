@@ -442,7 +442,7 @@ namespace ImTools
     public sealed class Ref<T> where T : class
     {
         /// <summary>Gets the wrapped value.</summary>
-        public T Value { get { return _value; } }
+        public T Value => _value;
 
         /// <summary>Creates ref to object, optionally with initial value provided.</summary>
         /// <param name="initialValue">(optional) Initial value.</param>
@@ -455,30 +455,31 @@ namespace ImTools
         /// <param name="getNewValue">Delegate to produce new object value from current one passed as parameter.</param>
         /// <returns>Returns old object value the same way as <see cref="Interlocked.Exchange(ref int,int)"/></returns>
         /// <remarks>Important: <paramref name="getNewValue"/> May be called multiple times to retry update with value concurrently changed by other code.</remarks>
-        public T Swap(Func<T, T> getNewValue)
-        {
-            return Ref.Swap(ref _value, getNewValue);
-        }
+        public T Swap(Func<T, T> getNewValue) => Ref.Swap(ref _value, getNewValue);
 
         /// <summary>Just sets new value ignoring any intermingled changes.</summary>
         /// <param name="newValue"></param> <returns>old value</returns>
-        public T Swap(T newValue)
-        {
-            return Interlocked.Exchange(ref _value, newValue);
-        }
+        public T Swap(T newValue) => Interlocked.Exchange(ref _value, newValue);
 
         /// <summary>Compares current Referred value with <paramref name="currentValue"/> and if equal replaces current with <paramref name="newValue"/></summary>
         /// <param name="currentValue"></param> <param name="newValue"></param>
         /// <returns>True if current value was replaced with new value, and false if current value is outdated (already changed by other party).</returns>
-        /// <example><c>[!CDATA[
+        /// <example><code lang="cs"><[!CDATA[
         /// var value = SomeRef.Value;
         /// if (!SomeRef.TrySwapIfStillCurrent(value, Update(value))
         ///     SomeRef.Swap(v => Update(v)); // fallback to normal Swap with delegate allocation
-        /// ]]</c></example>
-        public bool TrySwapIfStillCurrent(T currentValue, T newValue)
-        {
-            return Interlocked.CompareExchange(ref _value, newValue, currentValue) == currentValue;
-        }
+        /// ]]></code></example>
+        public bool TrySwapIfStillCurrent(T currentValue, T newValue) =>
+            Interlocked.CompareExchange(ref _value, newValue, currentValue) == currentValue;
+
+        /// <summary>Equals of the value</summary>
+        public override bool Equals(object obj) => obj is Ref<T> r && Equals(r._value, _value);
+
+        /// <summary>Hash-code of the value</summary>
+        public override int GetHashCode() => _value?.GetHashCode() ?? 0;
+
+        /// <summary>Value to string</summary>
+        public override string ToString() => "Ref(" + _value + ")";
 
         private T _value;
     }
@@ -490,17 +491,11 @@ namespace ImTools
         /// <typeparam name="T">Type of value to wrap.</typeparam>
         /// <param name="value">Initial value to wrap.</param>
         /// <returns>New ref.</returns>
-        public static Ref<T> Of<T>(T value) where T : class
-        {
-            return new Ref<T>(value);
-        }
+        public static Ref<T> Of<T>(T value) where T : class => new Ref<T>(value);
 
         /// <summary>Creates new ref to the value of original ref.</summary> <typeparam name="T">Ref value type.</typeparam>
         /// <param name="original">Original ref.</param> <returns>New ref to original value.</returns>
-        public static Ref<T> NewRef<T>(this Ref<T> original) where T : class
-        {
-            return Of(original.Value);
-        }
+        public static Ref<T> NewRef<T>(this Ref<T> original) where T : class => Of(original.Value);
 
         /// <summary>First, it evaluates new value using <paramref name="getNewValue"/> function. 
         /// Second, it checks that original value is not changed. 
@@ -552,13 +547,13 @@ namespace ImTools
         /// <summary>Creates nice string view.</summary><returns>String representation.</returns>
         public override string ToString()
         {
-            var s = new StringBuilder('{');
+            var s = new StringBuilder('(');
             if (Key != null)
                 s.Append(Key);
             s.Append(',');
             if (Value != null)
                 s.Append(Value);
-            s.Append('}');
+            s.Append(')');
             return s.ToString();
         }
 
@@ -568,8 +563,8 @@ namespace ImTools
         {
             var other = obj as KV<K, V>;
             return other != null
-                   && (ReferenceEquals(other.Key, Key) || Equals(other.Key, Key))
-                   && (ReferenceEquals(other.Value, Value) || Equals(other.Value, Value));
+                && (ReferenceEquals(other.Key, Key) || Equals(other.Key, Key))
+                && (ReferenceEquals(other.Value, Value) || Equals(other.Value, Value));
         }
 
         /// <summary>Combines key and value hash code. R# generated default implementation.</summary>
@@ -579,7 +574,7 @@ namespace ImTools
             unchecked
             {
                 return ((object)Key == null ? 0 : Key.GetHashCode() * 397)
-                       ^ ((object)Value == null ? 0 : Value.GetHashCode());
+                     ^ ((object)Value == null ? 0 : Value.GetHashCode());
             }
         }
     }
@@ -645,9 +640,9 @@ namespace ImTools
         public override string ToString()
         {
             if (IsEmpty)
-                return "<empty>";
+                return "[]";
 
-            var s = Head?.ToString();
+            var s = "[" + Head?.ToString();
             if (!Tail.IsEmpty)
                 s += "," + Tail.Head?.ToString();
             if (!Tail.Tail.IsEmpty)
@@ -655,7 +650,7 @@ namespace ImTools
             if (!Tail.Tail.Tail.IsEmpty)
                 s += ",..";
 
-            return s;
+            return s + "]";
         }
 
         #region Implementation

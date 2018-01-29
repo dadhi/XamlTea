@@ -17,60 +17,57 @@ namespace Tea.Wpf
         public void ApplyDiffs(ImList<UIDiff> diffs) =>
             diffs.Do(update => _rootControl.Dispatcher.Invoke(() => Apply(update, _rootControl)));
 
-        private static void Apply(UIDiff uiDiff, ContentControl root)
+        private static void Apply(UIDiff diff, ContentControl root)
         {
-            var path = uiDiff.Path;
-            switch (uiDiff)
+            //var path = diff.Path;
+            var (pos, tail, isEmpty) = diff.Path;
+            switch (diff)
             {
                 case UIDiff.Insert insert:
-                    if (path.IsEmpty)
+                    if (isEmpty)
                         root.Content = CreateUI(insert.UI);
                     else
-                        Locate(path.Tail, root).Children.Insert(path.Head, CreateUI(insert.UI));
+                        Locate(tail, root).Children.Insert(pos, CreateUI(insert.UI));
                     break;
 
                 case UIDiff.Update update:
-                    var elem = path.IsEmpty
-                        ? (UIElement)root.Content
-                        : Locate(path.Tail, root).Children[path.Head];
-
+                    var elem = isEmpty ? (UIElement)root.Content : Locate(tail, root).Children[pos];
                     Update(update.UI, elem);
                     break;
 
                 case UIDiff.Replace replace:
-                    if (path.IsEmpty)
+                    if (isEmpty)
                         root.Content = CreateUI(replace.UI);
                     else
                     {
-                        var children = Locate(path.Tail, root).Children;
-                        children.RemoveAt(path.Head);
-                        children.Insert(path.Head, CreateUI(replace.UI));
+                        var children = Locate(tail, root).Children;
+                        children.RemoveAt(pos);
+                        children.Insert(pos, CreateUI(replace.UI));
                     }
                     break;
 
                 case UIDiff.Remove _:
-                    if (!path.IsEmpty)
-                        Locate(path.Tail, root).Children.RemoveAt(path.Head);
+                    if (!isEmpty)
+                        Locate(tail, root).Children.RemoveAt(pos);
                     break;
 
+                // todo: Leaky API, how do I know that Event is handled elsewhere
                 case UIDiff.Event _:
                     // do nothing for events because they are raised before applying update in main MVU loop
                     break;
             }
         }
 
-        private static Panel Locate(ImList<int> path, ContentControl contentControl) =>
-            path.IsEmpty
-                ? (Panel)contentControl.Content
-                : (Panel)Locate(path.Tail, contentControl).Children[path.Head];
+        private static Panel Locate(ImList<int> path, ContentControl root) =>
+            path.IsEmpty ? (Panel)root.Content : (Panel)Locate(path.Tail, root).Children[path.Head];
 
         private static UIElement CreateUI(UI ui)
         {
             if (ui == null)
                 throw new ArgumentNullException(nameof(ui));
 
-            if (ui is UI.Text)
-                return new Label { Content = ui.Content };
+            if (ui is UI.Text text)
+                return new Label { Content = text.Content };
 
             if (ui is UI.Input input)
             {
@@ -82,7 +79,7 @@ namespace Tea.Wpf
 
             if (ui is UI.Button button)
             {
-                var elem = new Button { Content = button.Content };
+                var elem = new Button { Content = button.Label };
 
                 var ev = button.Clicked.Value;
                 elem.Click += (sender, _) => ev.Value(Unit.unit);
@@ -101,11 +98,11 @@ namespace Tea.Wpf
                 return elem;
             }
 
-            if (ui is UI.CheckBox check)
+            if (ui is UI.Check check)
             {
                 var elem = new CheckBox
                 {
-                    Content = check.Content,
+                    Content = check.Label,
                     IsChecked = check.IsChecked,
                 };
 
@@ -141,25 +138,25 @@ namespace Tea.Wpf
         {
             switch (ui)
             {
-                case UI.Text textUI:
+                case UI.Text text:
                     var label = (Label)elem;
-                    label.Content = textUI.Content;
+                    label.Content = text.Content;
                     break;
 
-                case UI.Input inputUI:
+                case UI.Input input:
                     var textBox = (TextBox)elem;
-                    textBox.Text = inputUI.Content;
+                    textBox.Text = input.Content;
                     break;
 
-                case UI.Button buttonUI:
+                case UI.Button btn:
                     var button = (Button)elem;
-                    button.Content = buttonUI.Content;
+                    button.Content = btn.Label;
                     break;
 
-                case UI.CheckBox checkBoxUI:
+                case UI.Check check:
                     var checkBox = (CheckBox)elem;
-                    checkBox.Content = checkBoxUI.Content;
-                    checkBox.IsChecked = checkBoxUI.IsChecked;
+                    checkBox.Content = check.Label;
+                    checkBox.IsChecked = check.IsChecked;
                     break;
             }
         }
