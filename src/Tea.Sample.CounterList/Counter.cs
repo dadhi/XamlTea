@@ -1,35 +1,25 @@
-using static Tea.UIParts;
-
 namespace Tea.Sample.CounterList
 {
-    public sealed class Counter : IComponent<Counter>
+    using static UIElements;
+    using M = IMessage<Counter>;
+
+    public class Counter : IComponent<Counter>
     {
-        public class Msg : IMsg<Counter>
-        {
-            public static readonly IMsg<Counter> Increment = new Msg();
-            public static readonly IMsg<Counter> Decrement = new Msg();
-        }
-
         public readonly int Count;
-        public Counter(int count) { Count = count; }
+        public Counter(int count) => Count = count;
 
-        public Counter Update(IMsg<Counter> msg)
+        public class Message : M
         {
-            if (msg == Msg.Increment)
-                return new Counter(Count + 1);
-
-            if (msg == Msg.Decrement)
-                return new Counter(Count - 1);
-
-            return this;
+            public static readonly M Increment = new Message();
+            public static readonly M Decrement = new Message();
         }
 
-        public UI<IMsg<Counter>> View()
-        {
-            return row(
-                button("+", Msg.Increment), 
-                button("-", Msg.Decrement), 
-                text<IMsg<Counter>>(Count.ToString()));
-        }
+        public Counter Update(M message) =>
+            message == Message.Increment ? new Counter(Count + 1) :
+            message == Message.Decrement ? new Counter(Count - 1) :
+            this;
+
+        public UI<M> View() =>
+            row(button("+", Message.Increment), button("-", Message.Decrement), text<M>(Count));
     }
 }

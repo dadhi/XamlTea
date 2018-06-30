@@ -2,40 +2,40 @@
 using System.Windows;
 using System.Windows.Controls;
 using ImTools;
+using static Tea.UIChange;
 
 namespace Tea.Wpf
 {
     public class WpfUI : INativeUI
     {
         /// <summary>Initializes the UI bound to provided content control.</summary>
-        public static INativeUI Init(ContentControl root) => new WpfUI(root);
+        public static INativeUI Create(ContentControl root) => new WpfUI(root);
 
         private readonly ContentControl _rootControl;
         private WpfUI(ContentControl rootControl) => _rootControl = rootControl;
 
         /// <summary>Applies the updates.</summary>
-        public void ApplyDiffs(ImList<UIDiff> diffs) =>
-            diffs.Do(update => _rootControl.Dispatcher.Invoke(() => Apply(update, _rootControl)));
+        public void ApplyChanges(ImList<UIChange> changes) =>
+            changes.Apply(x => _rootControl.Dispatcher.Invoke(() => Apply(x, _rootControl)));
 
-        private static void Apply(UIDiff diff, ContentControl root)
+        private static void Apply(UIChange change, ContentControl root)
         {
-            //var path = diff.Path;
-            var (pos, tail, isEmpty) = diff.Path;
-            switch (diff)
+            var (pos, tail, isEmpty) = change.Path;
+            switch (change)
             {
-                case UIDiff.Insert insert:
+                case Insert insert:
                     if (isEmpty)
                         root.Content = CreateUI(insert.UI);
                     else
                         Locate(tail, root).Children.Insert(pos, CreateUI(insert.UI));
                     break;
 
-                case UIDiff.Update update:
+                case Update update:
                     var elem = isEmpty ? (UIElement)root.Content : Locate(tail, root).Children[pos];
                     Update(update.UI, elem);
                     break;
 
-                case UIDiff.Replace replace:
+                case Replace replace:
                     if (isEmpty)
                         root.Content = CreateUI(replace.UI);
                     else
@@ -46,13 +46,13 @@ namespace Tea.Wpf
                     }
                     break;
 
-                case UIDiff.Remove _:
+                case Remove _:
                     if (!isEmpty)
                         Locate(tail, root).Children.RemoveAt(pos);
                     break;
 
                 // todo: Leaky API, how do I know that Event is handled elsewhere
-                case UIDiff.Event _:
+                case UIChange.Message _:
                     // do nothing for events because they are raised before applying update in main MVU loop
                     break;
             }
@@ -72,18 +72,16 @@ namespace Tea.Wpf
             if (ui is UI.Input input)
             {
                 var elem = new TextBox { Text = input.Content };
-                var ev = input.Changed.Value;
-                elem.TextChanged += (sender, _) => ev.Value(((TextBox)sender).Text);
+                var m = input.Changed;
+                elem.TextChanged += (sender, _) => m.Send(((TextBox)sender).Text);
                 return elem;
             }
 
-            if (ui is UI.Button button)
+            if (ui is UI.Button b)
             {
-                var elem = new Button { Content = button.Label };
-
-                var ev = button.Clicked.Value;
-                elem.Click += (sender, _) => ev.Value(Unit.unit);
-
+                var elem = new Button { Content = b.Label };
+                var m = b.Clicked;
+                elem.Click += (sender, _) => m.Send(Unit.unit);
                 return elem;
             }
 
@@ -92,9 +90,8 @@ namespace Tea.Wpf
                 var orientation = panel.Layout == Layout.Vertical ? Orientation.Vertical : Orientation.Horizontal;
                 var elem = new StackPanel { Orientation = orientation };
 
-                var children = panel.Parts.Map(CreateUI);
-                children.Do(x => elem.Children.Add(x));
-
+                var kids = panel.Elements.Map(CreateUI);
+                kids.Apply(x => elem.Children.Add(x));
                 return elem;
             }
 
@@ -106,9 +103,9 @@ namespace Tea.Wpf
                     IsChecked = check.IsChecked,
                 };
 
-                var ev = check.Changed.Value;
-                elem.Checked += (sender, _) => ev.Value(true);
-                elem.Unchecked += (sender, _) => ev.Value(false);
+                var m = check.Changed;
+                elem.Checked += (sender, _) => m.Send(true);
+                elem.Unchecked += (sender, _) => m.Send(false);
 
                 return elem;
             }
@@ -138,25 +135,21 @@ namespace Tea.Wpf
         {
             switch (ui)
             {
-                case UI.Text text:
-                    var label = (Label)elem;
-                    label.Content = text.Content;
+                case UI.Text t when elem is Label l:
+                    l.Content = t.Content;
                     break;
 
-                case UI.Input input:
-                    var textBox = (TextBox)elem;
-                    textBox.Text = input.Content;
+                case UI.Input i when elem is TextBox tb:
+                    tb.Text = i.Content;
                     break;
 
-                case UI.Button btn:
-                    var button = (Button)elem;
-                    button.Content = btn.Label;
+                case UI.Button b when elem is Button bt:
+                    bt.Content = b.Label;
                     break;
 
-                case UI.Check check:
-                    var checkBox = (CheckBox)elem;
-                    checkBox.Content = check.Label;
-                    checkBox.IsChecked = check.IsChecked;
+                case UI.Check c when elem is CheckBox cb:
+                    cb.Content = c.Label;
+                    cb.IsChecked = c.IsChecked;
                     break;
             }
         }

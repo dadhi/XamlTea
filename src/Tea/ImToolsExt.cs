@@ -3,10 +3,10 @@ using ImTools;
 
 namespace Tea
 {
-    public sealed class Unit
+    public struct Unit
     {
         public static readonly Unit unit = new Unit();
-        private Unit() { }
+        public override string ToString() => "unit";
     }
 
     public static class ImToolsExt

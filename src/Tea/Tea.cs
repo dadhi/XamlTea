@@ -1,19 +1,39 @@
 ﻿using System;
 using ImTools;
-using static Tea.Unit;
-using static Tea.ImToolsExt;
-using static Tea.UIDiff;
+
 // ReSharper disable InconsistentNaming
 #pragma warning disable 659
 
 namespace Tea
 {
-    public delegate void Event<in T>(T msg);
+    using static ImToolsExt;
+    using static UIChange;
 
-    public static class Event
+    public struct MessageRef<M>
     {
-        public static void Empty<TMsg>(TMsg _) { }
-        public static Ref<Ref<Event<T>>> Of<T>(Event<T> send) => Ref.Of(Ref.Of(send));
+        public Ref<Ref<Action<M>>> Ref;
+        public MessageRef(Ref<Ref<Action<M>>> r) => Ref = r;
+    }
+
+    public static class Message
+    {
+        public static void Empty<M>(M _) { }
+        
+        public static MessageRef<M> Ref<M>(Action<M> send) => 
+            new MessageRef<M>(ImTools.Ref.Of(ImTools.Ref.Of(send)));
+        
+        public static MessageRef<M> EmptyRef<M>() => Ref<M>(Empty);
+
+        public static void Set<M>(this MessageRef<M> x, Action<M> send) => x.Ref.Value.Swap(send);
+
+        public static void Send<M>(this MessageRef<M> x, M m) => x.Ref.Value.Value(m);
+
+        public static Action Updater<M>(this MessageRef<M> a, MessageRef<M> b) => () =>
+        {
+            var ar = a.Ref.Value;
+            ar.Swap(b.Ref.Value.Value);
+            b.Ref.Swap(ar);
+        };
     }
 
     //public abstract class Style
@@ -48,7 +68,7 @@ namespace Tea
     //    public static Style width(int n) => new Style.Width(n);
     //    public static Style height(int n) => new Style.Height(n);
     //    public static Style isEnabled(bool enabled) => enabled ? Style.IsEnabled.Enabled : Style.IsEnabled.Disabled;
-    //    public static Style tooltip(string text) => new Style.Tooltip(text);
+    //    public static Style tooltip(string label) => new Style.Tooltip(label);
 
     //    public static ImList<(Style, Style)> PrependDiffs(this ImList<Style> source, ImList<Style> other)
     //    {
@@ -93,7 +113,7 @@ namespace Tea
 
     public abstract class UI
     {
-        public class Text : UI
+        public sealed class Text : UI
         {
             public readonly string Content;
             public Text(string text) => Content = text;
@@ -101,306 +121,268 @@ namespace Tea
             public override string ToString() => $"Text('{Content}')";
         }
 
-        public class Input : UI
+        public sealed class Input : UI
         {
             public readonly string Content;
-            public readonly Ref<Ref<Event<string>>> Changed;
+            public readonly MessageRef<string> Changed;
 
-            public Input(string content, Ref<Ref<Event<string>>> changed)
-            {
-                Content = content;
-                Changed = changed;
-            }
+            public Input(string text, MessageRef<string> changed) =>
+                (Content, Changed) = (text, changed);
 
             public override string ToString() => $"Input('{Content}')";
         }
 
-        public class Button : UI
+        public sealed class Button : UI
         {
             public readonly string Label;
-            public readonly Ref<Ref<Event<Unit>>> Clicked;
+            public readonly MessageRef<Unit> Clicked;
 
-            public Button(string label, Ref<Ref<Event<Unit>>> clicked)
-            {
-                Label = label;
-                Clicked = clicked;
-            }
+            public Button(string label, MessageRef<Unit> clicked) =>
+                (Label, Clicked) = (label, clicked);
 
             public override string ToString() => $"Button('{Label}')";
         }
 
-        public class Check : UI
+        public sealed class Check : UI
         {
             public readonly string Label;
             public readonly bool IsChecked;
-            public readonly Ref<Ref<Event<bool>>> Changed;
+            public readonly MessageRef<bool> Changed;
 
-            public Check(string label, bool isChecked, Ref<Ref<Event<bool>>> changed)
-            {
-                Label = label;
-                IsChecked = isChecked;
-                Changed = changed;
-            }
+            public Check(string label, bool isChecked, MessageRef<bool> changed) =>
+                (Label, IsChecked, Changed) = (label, isChecked, changed);
 
             public override string ToString() => $"Check({IsChecked},'{Label}')";
         }
 
-        public class Panel : UI
+        public sealed class Panel : UI
         {
             public readonly Layout Layout;
-            public readonly ImList<UI> Parts;
+            public readonly ImList<UI> Elements;
 
-            public Panel(Layout layout, ImList<UI> parts)
-            {
-                Layout = layout;
-                Parts = parts;
-            }
+            public Panel(Layout layout, ImList<UI> elements) =>
+                (Layout, Elements) = (layout, elements);
 
-            public override string ToString() => (Layout == Layout.Vertical ? "Col(" : "Row(") + Parts + ")";
+            public override string ToString() => 
+                (Layout == Layout.Vertical ? "Col(" : "Row(") + Elements + ")";
         }
     }
 
     /// UI component update and event redirection.
-    public abstract class UIDiff
+    public abstract class UIChange
     {
         public readonly ImList<int> Path;
-        protected UIDiff(ImList<int> path) => Path = path;
+        protected UIChange(ImList<int> path) => Path = path;
 
-        public class Insert : UIDiff
+        public class Insert : UIChange
         {
             public readonly UI UI;
             public Insert(ImList<int> path, UI ui) : base(path) => UI = ui;
         }
 
-        public class Update : UIDiff
+        public class Update : UIChange
         {
             public readonly UI UI;
             public Update(ImList<int> path, UI ui) : base(path) => UI = ui;
         }
 
-        public class Replace : UIDiff
+        public class Replace : UIChange
         {
             public readonly UI UI;
             public Replace(ImList<int> path, UI ui) : base(path) => UI = ui;
         }
 
-        public class Remove : UIDiff
+        public class Remove : UIChange
         {
             public Remove(ImList<int> path) : base(path) { }
         }
 
-        public class Event : UIDiff
+        public class Message : UIChange
         {
-            public readonly Action<Unit> Send;
-            public Event(Action<Unit> send) : base(ImList<int>.Empty) => Send = send;
+            public readonly Action Apply;
+            public Message(Action apply) : base(ImList<int>.Empty) => Apply = apply;
         }
     }
 
-    /// UI component including a message event.
-    public class UI<TMsg>
+    /// UI with message M.
+    public class UI<M>
     {
-        public readonly UI BaseUI;
-        public Action<TMsg> Send;
-
-        public UI(UI baseUi, Action<TMsg> send)
-        {
-            BaseUI = baseUi;
-            Send = send;
-        }
+        public readonly UI Element;
+        public Action<M> Send;
+        public UI(UI element, Action<M> send) => (Element, Send) = (element, send);
     }
 
-    /// <summary>Base interface for component with Update, View but without Commands, Subscriptions.</summary>
+    /// Base interface for component with Update, View but without Commands, Subscriptions.
     public interface IComponent<T> where T : IComponent<T>
     {
-        T Update(IMsg<T> msg);
-
-        UI<IMsg<T>> View();
+        T Update(IMessage<T> message);
+        UI<IMessage<T>> View();
     }
 
-    /// <summary>Marker interface to allow boilerplate removal.</summary>
-    /// <typeparam name="T">Component type</typeparam>
+    /// Marker interface for boilerplate removal.
     // ReSharper disable once UnusedTypeParameter
-    public interface IMsg<T> { }
+    public interface IMessage<T> { }
 
-    public class ItemChanged<TItem, THolder> : IMsg<THolder>
+    public struct ChildChanged<TChild, TParent> : IMessage<TParent>
     {
-        public int Index { get; }
-        public IMsg<TItem> Msg { get; }
-
-        public ItemChanged(int index, IMsg<TItem> msg)
-        {
-            Index = index;
-            Msg = msg;
-        }
+        public readonly int Index;
+        public readonly IMessage<TChild> Message;
+        public ChildChanged(int index, IMessage<TChild> message) => (Index, Message) = (index, message);
     }
 
     public static class Component
     {
-        public static UI<IMsg<THolder>> ViewIn<TItem, THolder>(this TItem item, int itemIndex)
-            where TItem : IComponent<TItem>
-            where THolder : IComponent<THolder> =>
-            item.View().MapMsg(msg => msg.Lift<TItem, THolder>(itemIndex));
+        public static UI<IMessage<TParent>> In<TChild, TParent>(this TChild child, int childIndex)
+            where TChild : IComponent<TChild>
+            where TParent : IComponent<TParent> =>
+            child.View().Map(m => m.Lift<TChild, TParent>(childIndex));
 
-        public static UI<IMsg<THolder>> ViewIn<TItem, THolder>(this TItem item, THolder hereOnlyForTypeInference,
-            int itemIndex = 0)
-            where TItem : IComponent<TItem> => 
-            item.View().MapMsg(msg => msg.Lift<TItem, THolder>(itemIndex));
+        public static UI<IMessage<TParent>> In<TChild, TParent>(this TChild child, TParent _onlyForInference, int childIndex = 0)
+            where TChild : IComponent<TChild> =>
+            child.View().Map(m => m.Lift<TChild, TParent>(childIndex));
 
-        public static IMsg<THolder> Lift<TItem, THolder>(this IMsg<TItem> itemMsg, int itemIndex) =>
-            new ItemChanged<TItem, THolder>(itemIndex, itemMsg);
+        public static IMessage<TParent> Lift<TChild, TParent>(this IMessage<TChild> childMessage, int childIndex) =>
+            new ChildChanged<TChild, TParent>(childIndex, childMessage);
     }
 
     public interface INativeUI
     {
-        void ApplyDiffs(ImList<UIDiff> diffs);
+        void ApplyChanges(ImList<UIChange> changes);
     }
 
-    public static class UIParts
+    public static class UIElements
     {
-        public static UI<TMsg> text<TMsg>(string text) =>
-            new UI<TMsg>(new UI.Text(text), Event.Empty);
+        public static UI<M> text<M>(string text) =>
+            new UI<M>(new UI.Text(text), Message.Empty);
 
-        public static UI<TMsg> input<TMsg>(string text, Func<string, TMsg> changed)
+        public static UI<M> text<M>(object textObj) => text<M>("" + textObj);
+
+        public static UI<M> input<M>(string text, Func<string, M> onChange)
         {
-            var ev = Event.Of<string>(Event.Empty);
-            var ui = new UI<TMsg>(new UI.Input(text, ev), Event.Empty);
-            ev.Value.Swap(s => ui.Send(changed(s)));
+            var m = Message.EmptyRef<string>();
+            return new UI<M>(new UI.Input(text, m), Message.Empty)
+                .Do(x => m.Set(s => x.Send(onChange(s))));
+        }
+
+        public static UI<M> button<M>(string label, Func<M> onClick)
+        {
+            var m = Message.EmptyRef<Unit>();
+            return new UI<M>(new UI.Button(label, m), Message.Empty)
+                .Do(x => m.Set(_ => x.Send(onClick())));
+        }
+
+        public static UI<M> button<M>(string label, M onClickMessage) =>
+            button(label, () => onClickMessage);
+
+        public static UI<M> check<M>(string label, bool isChecked, Func<bool, M> onCheck)
+        {
+            var m = Message.EmptyRef<bool>();
+            return new UI<M>(new UI.Check(label, isChecked, m), Message.Empty)
+                .Do(x => m.Set(b => x.Send(onCheck(b))));
+        }
+
+        public static UI<M> panel<M>(Layout layout, ImList<UI<M>> elements)
+        {
+            var ui = new UI<M>(new UI.Panel(layout, elements.Map(x => x.Element)), Message.Empty);
+            void Send(M m) => ui.Send(m);
+            elements.Apply(x => x.Send = Send);
             return ui;
         }
 
-        public static UI<TMsg> button<TMsg>(string text, TMsg clicked)
-        {
-            var ev = Event.Of<Unit>(Event.Empty);
-            var ui = new UI<TMsg>(new UI.Button(text, ev), Event.Empty);
-            ev.Value.Swap(_ => ui.Send(clicked));
-            return ui;
-        }
+        public static UI<M> row<M>(ImList<UI<M>> uis) => panel(Layout.Horizontal, uis);
 
-        public static UI<TMsg> check<TMsg>(string text, bool isChecked, Func<bool, TMsg> changed)
-        {
-            var ev = Event.Of<bool>(Event.Empty);
-            var ui = new UI<TMsg>(new UI.Check(text, isChecked, ev), Event.Empty);
-            ev.Value.Swap(check => ui.Send(changed(check)));
-            return ui;
-        }
+        public static UI<M> row<M>(params UI<M>[] kids) => row(list(kids));
 
-        public static UI<TMsg> panel<TMsg>(Layout layout, ImList<UI<TMsg>> uis)
-        {
-            var panel = new UI<TMsg>(new UI.Panel(layout, uis.Map(x => x.BaseUI)), Event.Empty);
-            void Send(TMsg m) => panel.Send(m);
-            uis.Do(x => x.Send = Send);
-            return panel;
-        }
+        public static UI<M> column<M>(ImList<UI<M>> kids) => panel(Layout.Vertical, kids);
 
-        public static UI<TMsg> row<TMsg>(ImList<UI<TMsg>> uis) =>
-            panel(Layout.Horizontal, uis);
-
-        public static UI<TMsg> row<TMsg>(params UI<TMsg>[] uis) => row(list(uis));
-
-        public static UI<TMsg> column<TMsg>(ImList<UI<TMsg>> uis) =>
-            panel(Layout.Vertical, uis);
-
-        public static UI<TMsg> column<TMsg>(params UI<TMsg>[] uis) => column(list(uis));
+        public static UI<M> column<M>(params UI<M>[] kids) => column(list(kids));
     }
 
-    public static class UIApp
+    public static class UIApplication
     {
-        ///<summary>Returns a new UI component mapping the message event using the given function.</summary>
-        public static UI<THolderMsg> MapMsg<TItemMsg, THolderMsg>(
-            this UI<TItemMsg> source, Func<TItemMsg, THolderMsg> map)
+        /// Returns a new UI component mapping the message using the given function.
+        public static UI<B> Map<A, B>(this UI<A> source, Func<A, B> map)
         {
-            var result = new UI<THolderMsg>(source.BaseUI, Event.Empty);
-            source.Send = msg => result.Send(map(msg));
-            return result;
+            var target = new UI<B>(source.Element, Message.Empty);
+            void Send(A a) => target.Send(map(a));
+            source.Send = Send;
+            return target;
         }
 
-        ///<summary>Returns a list of UI updates from two UI components.
-        /// To ensure correct insert and removal sequence where the insert/remove index are existing.</summary> 
-        public static ImList<UIDiff> Diff<TMsg1, TMsg2>(this UI<TMsg1> ui, UI<TMsg2> newUI) =>
-            Diff(ImList<UIDiff>.Empty, ui.BaseUI, newUI.BaseUI, path: ImList<int>.Empty, pos: 0);
+        /// Returns a list of UI updates from two UI components.
+        /// To ensure correct insert and removal sequence where the insert/remove index are existing.
+        public static ImList<UIChange> Diff<M1, M2>(this UI<M1> a, UI<M2> b) =>
+            Diff(ImList<UIChange>.Empty, a.Element, b.Element, path: ImList<int>.Empty, pos: 0);
 
-        private static ImList<UIDiff> Diff(this ImList<UIDiff> diffs, UI ui, UI newUI, ImList<int> path, int pos)
+        private static ImList<UIChange> Diff(this ImList<UIChange> changes, UI a, UI b, ImList<int> path, int pos)
         {
-            if (ReferenceEquals(ui, newUI))
-                return diffs;
+            if (ReferenceEquals(a, b))
+                return changes;
 
-            if (ui is UI.Text text && newUI is UI.Text newText)
-                return text.Content == newText.Content ? diffs : new Update(path, newUI).Cons(diffs);
+            if (a is UI.Text textA && b is UI.Text textB)
+                return textA.Content == textB.Content ? changes : changes.Prepend(new Update(path, b));
 
-            if (ui is UI.Button btn && newUI is UI.Button newBtn)
+            if (a is UI.Button buttonA && b is UI.Button buttonB)
             {
-                if (btn.Label != newBtn.Label)
-                    diffs = new Update(path, newBtn).Cons(diffs);
-                return new UIDiff.Event(btn.Clicked.Swap(newBtn.Clicked)).Cons(diffs);
+                if (buttonA.Label != buttonB.Label)
+                    changes = changes.Prepend(new Update(path, buttonB));
+                return changes.Prepend(new UIChange.Message(buttonA.Clicked.Updater(buttonB.Clicked)));
             }
 
-            if (ui is UI.Input input && newUI is UI.Input newInput)
+            if (a is UI.Input inputA && b is UI.Input inputB)
             {
-                if (input.Content != newInput.Content)
-                    diffs = new Update(path, newInput).Cons(diffs);
-                return new UIDiff.Event(input.Changed.Swap(newInput.Changed)).Cons(diffs);
+                if (inputA.Content != inputB.Content)
+                    changes = changes.Prepend(new Update(path, inputB));
+                return changes.Prepend(new UIChange.Message(inputA.Changed.Updater(inputB.Changed)));
             }
 
-            if (ui is UI.Check check && newUI is UI.Check newCheck)
-                return new UIDiff.Event(check.Changed.Swap(newCheck.Changed))
-                    .Cons(check.IsChecked != newCheck.IsChecked || check.Label != newCheck.Label 
-                        ? new Update(path, newCheck).Cons(diffs) 
-                        : diffs);
+            // we can do this a different fluent way
+            if (a is UI.Check checkA && b is UI.Check checkB)
+                return new UIChange.Message(checkA.Changed.Updater(checkB.Changed))
+                    .Cons(checkA.IsChecked == checkB.IsChecked && checkA.Label == checkB.Label 
+                        ? changes : new Update(path, checkB).Cons(changes));
 
-            if (ui is UI.Panel panel && newUI is UI.Panel newPanel)
-                return panel.Layout == newPanel.Layout
-                    ? diffs.Diff(panel.Parts, newPanel.Parts, path, pos)
-                    : new Replace(path, newPanel).Cons(diffs);
+            if (a is UI.Panel panelA && b is UI.Panel panelB)
+                return panelA.Layout == panelB.Layout
+                    ? changes.Diff(panelA.Elements, panelB.Elements, path, pos)
+                    : changes.Prepend(new Replace(path, panelB));
 
-            return new Replace(path, newUI).Cons(diffs);
+            return changes.Prepend(new Replace(path, b));
         }
 
-        private static ImList<UIDiff> Diff(this ImList<UIDiff> diffs,
-            ImList<UI> oldParts, ImList<UI> newParts, ImList<int> path, int pos)
+        private static ImList<UIChange> Diff(this ImList<UIChange> changes, ImList<UI> a, ImList<UI> b, ImList<int> path, int pos)
         {
-            if (oldParts.IsEmpty && newParts.IsEmpty)
-                return diffs;
+            if (a.IsEmpty && b.IsEmpty)
+                return changes;
 
-            if (oldParts.IsEmpty)
-                return newParts.Fold(diffs, (ui, i, d) => new Insert((pos + i).Cons(path), ui).Cons(d));
+            if (a.IsEmpty)
+                return b.Fold(changes, (ui, i, tail) => new Insert((pos + i).Cons(path), ui).Cons(tail));
 
-            if (newParts.IsEmpty)
-                return oldParts.Fold(diffs, (_, i, d) => new Remove((pos + i).Cons(path)).Cons(d));
+            if (b.IsEmpty)
+                return a.Fold(changes, (_, i, tail) => new Remove((pos + i).Cons(path)).Cons(tail));
 
-            return  diffs
-                .Diff(oldParts.Head, newParts.Head, pos.Cons(path), 0)
-                .Diff(oldParts.Tail, newParts.Tail, path, pos + 1);
+            return  changes
+                .Diff(a.Head, b.Head, pos.Cons(path), 0)
+                .Diff(a.Tail, b.Tail, path, pos + 1);
         }
-
-        // Point first ref to second ref value.value
-        private static Action<Unit> Swap<T>(this Ref<Ref<T>> e1, Ref<Ref<T>> e2) where T : class => _ =>
-        {
-            //let ev = !e1 in ev:=!(!e2); e2:=ev
-            var e1Val = e1.Value;
-            e1Val.Swap(e2.Value.Value);
-            e2.Swap(e1Val);
-        };
 
         /// <summary>Runs Model-View-Update loop, e.g. Init->View->Update->View->Update->View... </summary>
-        public static void Run<T>(INativeUI nativeUI, IComponent<T> component) where T : IComponent<T>
+        public static void Run<T>(INativeUI nativeUI, IComponent<T> application) where T : IComponent<T>
         {
-            void UpdateViewLoop(IComponent<T> comp, UI<IMsg<T>> ui, IMsg<T> message)
-            {
-                var newComp = comp.Update(message);
-                var newUI = newComp.View();
-                newUI.Send = msg => UpdateViewLoop(newComp, newUI, msg);
-
-                var diffs = ui.Diff(newUI);
-
-                diffs.Do(d => (d as UIDiff.Event)?.Send(unit));
-
-                nativeUI.ApplyDiffs(diffs);
-            }
-
             // Render and insert initial UI from the model
-            var initialUI = component.View();
-            initialUI.Send = msg => UpdateViewLoop(component, initialUI, msg);
-            nativeUI.ApplyDiffs(new Insert(ImList<int>.Empty, initialUI.BaseUI).Cons<UIDiff>());
+            var initialUI = application.View();
+            initialUI.Send = m => UpdateViewLoop(application, initialUI, m);
+            nativeUI.ApplyChanges(new Insert(ImList<int>.Empty, initialUI.Element).Cons<UIChange>());
+
+            void UpdateViewLoop(IComponent<T> app, UI<IMessage<T>> ui, IMessage<T> msg)
+            {
+                var newModel = app.Update(msg);
+                var newUI = newModel.View();
+                newUI.Send = m => UpdateViewLoop(newModel, newUI, m);
+                var changes = ui.Diff(newUI);
+                changes.Apply(x => (x as UIChange.Message)?.Apply());
+                nativeUI.ApplyChanges(changes);
+            }
         }
     }
 }

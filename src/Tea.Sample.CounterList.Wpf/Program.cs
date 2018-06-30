@@ -11,7 +11,7 @@ namespace Tea.Sample.CounterList.Wpf
         {
             var window = new Window { Title = "Tea Sample" };
 
-            UIApp.Run(WpfUI.Init(window), CounterList.Initial);
+            UIApplication.Run(WpfUI.Create(window), CounterList.Init());
 
             new Application().Run(window);
         }

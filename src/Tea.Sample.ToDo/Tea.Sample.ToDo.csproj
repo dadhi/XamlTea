@@ -42,6 +42,7 @@
   <ItemGroup>
     <Compile Include="ToDoAppWithHistory.cs" />
     <Compile Include="ToDoApp.cs" />
+    <Compile Include="ChangedEventSample.cs" />
     <Compile Include="ToDoItem.cs" />
     <Compile Include="ToDoList.cs" />
   </ItemGroup>

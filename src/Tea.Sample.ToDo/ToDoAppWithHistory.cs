@@ -1,8 +1,9 @@
-﻿using ImTools;
-using static Tea.UIParts;
-
-namespace Tea.Sample.ToDo
+﻿namespace Tea.Sample.ToDo
 {
+    using ImTools;
+    using static UIElements;
+    using M = IMessage<ToDoAppWithHistory>;
+
     public class ToDoAppWithHistory : IComponent<ToDoAppWithHistory>
     {
         public readonly ImList<ToDoApp> History;
@@ -14,36 +15,29 @@ namespace Tea.Sample.ToDo
             App = app;
         }
 
-        public static ToDoAppWithHistory Init() => new ToDoAppWithHistory(ImList<ToDoApp>.Empty, ToDoApp.Init());
+        public static ToDoAppWithHistory Init() => 
+            new ToDoAppWithHistory(ImList<ToDoApp>.Empty, ToDoApp.Init());
 
-        public class ApplyFromHistory : IMsg<ToDoAppWithHistory>
+        public struct Restore : M
         {
-            public ToDoApp Model { get; private set; }
-            public static IMsg<ToDoAppWithHistory> It(ToDoApp model) => new ApplyFromHistory { Model = model };
+            public ToDoApp Model;
+            public static M It(ToDoApp model) => new Restore { Model = model };
         }
 
-        public UI<IMsg<ToDoAppWithHistory>> View()
+        public ToDoAppWithHistory Update(M message)
         {
-            return
-                column(
-                    App.ViewIn(this),
-                    column(History.Map(model =>
-                        row(button("apply", ApplyFromHistory.It(model)),
-                            text<IMsg<ToDoAppWithHistory>>(model.ToString()))
-                        )
-                    )
-                );
-        }
-
-        public ToDoAppWithHistory Update(IMsg<ToDoAppWithHistory> msg)
-        {
-            if (msg is ApplyFromHistory applyModel)
+            if (message is Restore applyModel)
                 return new ToDoAppWithHistory(History, applyModel.Model);
 
-            if (msg is ItemChanged<ToDoApp, ToDoAppWithHistory> modelChanged)
-                return new ToDoAppWithHistory(History.Prepend(App), App.Update(modelChanged.Msg));
+            if (message is ChildChanged<ToDoApp, ToDoAppWithHistory> modelChanged)
+                return new ToDoAppWithHistory(History.Prepend(App), App.Update(modelChanged.Message));
 
             return this;
         }
+
+        public UI<M> View() => 
+            column(
+                App.In(this),
+                column(History.Map(app => row(button("apply", Restore.It(app)), text<M>(app)))));
     }
 }

@@ -22,8 +22,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 
-using System.Diagnostics;
-
 namespace ImTools
 {
     using System;
@@ -31,6 +29,29 @@ namespace ImTools
     using System.Linq;
     using System.Text;
     using System.Threading;
+
+    /// <summary>Helpers for functional composition</summary>
+    public static class Fun
+    {
+        /// <summary>Identity function returning passed argument as result.</summary>
+        public static T It<T>(T x) => x;
+
+        /// <summary>Always a true condition.</summary>
+        public static bool Always<T>(T _) => true;
+
+        /// <summary>Always a false condition.</summary>
+        public static bool Never<T>(T _) => false;
+
+        /// <summary>Forward pipe operator to combine multiple actions.</summary>
+        public static R Do<T, R>(this T x, Func<T, R> map) => map(x);
+
+        /// <summary>Forward pipe operator to combine multiple actions.</summary>
+        public static T Do<T>(this T x, Action<T> effect)
+        {
+            effect(x);
+            return x;
+        }
+    }
 
     /// <summary>Methods to work with immutable arrays, and general array sugar.</summary>
     public static class ArrayTools
@@ -42,34 +63,21 @@ namespace ImTools
 
         /// <summary>Returns singleton empty array of provided type.</summary> 
         /// <typeparam name="T">Array item type.</typeparam> <returns>Empty array.</returns>
-        public static T[] Empty<T>()
-        {
-            return EmptyArray<T>.Value;
-        }
+        public static T[] Empty<T>() => EmptyArray<T>.Value;
+
+        /// <summary>Wraps item in array.</summary>
+        public static T[] One<T>(this T one) => new[] { one };
 
         /// <summary>Returns true if array is null or have no items.</summary> <typeparam name="T">Type of array item.</typeparam>
         /// <param name="source">Source array to check.</param> <returns>True if null or has no items, false otherwise.</returns>
-        public static bool IsNullOrEmpty<T>(this T[] source)
-        {
-            return source == null || source.Length == 0;
-        }
+        public static bool IsNullOrEmpty<T>(this T[] source) => source == null || source.Length == 0;
 
         /// <summary>Returns empty array instead of null, or source array otherwise.</summary> <typeparam name="T">Type of array item.</typeparam>
-        /// <param name="source">Source array.</param> <returns>Empty array or source.</returns>
-        public static T[] EmptyIfNull<T>(this T[] source)
-        {
-            return source ?? Empty<T>();
-        }
+        public static T[] EmptyIfNull<T>(this T[] source) => source ?? Empty<T>();
 
         /// <summary>Returns source enumerable if it is array, otherwise converts source to array.</summary>
-        /// <typeparam name="T">Array item type.</typeparam>
-        /// <param name="source">Source enumerable.</param>
-        /// <returns>Source enumerable or its array copy.</returns>
-        public static T[] ToArrayOrSelf<T>(this IEnumerable<T> source)
-        {
-            var array = source as T[];
-            return array ?? source.ToArray();
-        }
+        public static T[] ToArrayOrSelf<T>(this IEnumerable<T> source) =>
+            source == null ? Empty<T>() : (source as T[] ?? source.ToArray());
 
         /// <summary>Returns new array consisting from all items from source array then all items from added array.
         /// If source is null or empty, then added array will be returned.
@@ -675,8 +683,11 @@ namespace ImTools
         /// <summary>Constructs list from head and tail</summary>
         public static ImList<T> Cons<T>(this T head, ImList<T> tail) => tail.Prepend(head);
 
+        /// <summary>Constructs list of two elements</summary>
+        public static ImList<T> Cons<T>(this T head, T tail) => ImList<T>.Empty.Prepend(tail).Prepend(head);
+
         /// <summary>Do some action on each element</summary>
-        public static void Do<T>(this ImList<T> list, Action<T> action)
+        public static void Apply<T>(this ImList<T> list, Action<T> action)
         {
             for (; !list.IsEmpty; list = list.Tail)
                 action(list.Head);

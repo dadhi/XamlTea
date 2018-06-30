@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Windows;
 using Tea;
+using Tea.Sample;
 using Tea.Sample.ToDo;
 
 namespace Team.Sample.ToDo.Wpf
@@ -11,13 +12,14 @@ namespace Team.Sample.ToDo.Wpf
         [STAThread]
         public static void Main()
         {
-            var window = new Window { Title = "Tea Sample" };
+            var window = new Window { Title = "Sample App" };
+            var ui = WpfUI.Create(window);
 
-            var ui = WpfUI.Init(window);
+            //UIApplication.Run(ui, new ChangedEventSample());
 
-            UIApp.Run(ui, ToDoList.Init());
-            //UIApp.Run(ui, ToDoCards.Init());
-            //UIApp.Run(ui, ToDoAppWithHistory.Init());
+            //UIApplication.Run(ui, ToDoList.Init());
+            //UIApplication.Run(ui, ToDoApp.Init());
+            UIApplication.Run(ui, ToDoAppWithHistory.Init());
 
             var app = new Application();
             app.Run(window);

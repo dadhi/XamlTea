@@ -1,7 +1,8 @@
-using static Tea.UIParts;
-
 namespace Tea.Sample.ToDo
 {
+    using static UIElements;
+    using M = IMessage<ToDoItem>;
+
     public class ToDoItem : IComponent<ToDoItem>
     {
         public readonly string Text;
@@ -15,34 +16,30 @@ namespace Tea.Sample.ToDo
 
         public override string ToString() => "'" + Text + (IsDone ? "';done" : "'");
 
-        public class IsDoneChanged : IMsg<ToDoItem>
+        public class IsDoneChanged : M
         {
             public bool IsDone { get; private set; }
-            public static IMsg<ToDoItem> It(bool isDone) => new IsDoneChanged { IsDone = isDone };
+            public static M It(bool isDone) => new IsDoneChanged { IsDone = isDone };
         }
 
-        public class TextChanged : IMsg<ToDoItem>
+        public class TextChanged : M
         {
             public string Text { get; private set; }
-            public static IMsg<ToDoItem> It(string text) => new TextChanged { Text = text };
+            public static M It(string text) => new TextChanged { Text = text };
         }
 
-        public ToDoItem Update(IMsg<ToDoItem> msg)
+        public ToDoItem Update(M message)
         {
-            if (msg is IsDoneChanged isDoneChanged)
+            if (message is IsDoneChanged isDoneChanged)
                 return new ToDoItem(Text, isDoneChanged.IsDone);
-            if (msg is TextChanged textChanged)
+            if (message is TextChanged textChanged)
                 return new ToDoItem(textChanged.Text, IsDone);
             return this;
         }
 
-        public UI<IMsg<ToDoItem>> View()
-        {
-            return IsDone 
-                ? check(Text, IsDone, IsDoneChanged.It)
-                : row(
-                    check(string.Empty, IsDone, IsDoneChanged.It),
-                    input(Text, TextChanged.It));
-        }
+        public UI<M> View() => 
+            IsDone
+            ? check(Text, IsDone, IsDoneChanged.It)
+            : row(check("", IsDone, IsDoneChanged.It), input(Text, TextChanged.It));
     }
 }
