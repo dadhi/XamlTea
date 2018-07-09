@@ -72,7 +72,7 @@ namespace ImTools
     public static class Union
     {
         /// Less strange (V.V) access to the nested case
-        public static T Val<T>(this I<I<T>> i) => i.V.V;
+        public static T Value<T>(this I<I<T>> i) => i.V.V;
 
         internal static string ToString<TName, T>(T value)
         {

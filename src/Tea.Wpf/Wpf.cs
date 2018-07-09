@@ -2,7 +2,6 @@
 using System.Windows;
 using System.Windows.Controls;
 using ImTools;
-using static Tea.UIChange;
 using Pnl = System.Windows.Controls.Panel;
 using Btn = System.Windows.Controls.Button;
 
@@ -17,44 +16,52 @@ namespace Tea.Wpf
         private WpfUI(ContentControl rootControl) => _rootControl = rootControl;
 
         /// <summary>Applies the updates.</summary>
-        public void ApplyChanges(ImList<UIChange> changes) =>
+        public void ApplyPatches(ImList<Patch.U> changes) =>
             changes.Apply(x => _rootControl.Dispatcher.Invoke(() => Apply(x, _rootControl)));
 
-        private static void Apply(UIChange change, ContentControl root)
+        private static void Apply(Patch.U change, ContentControl root)
         {
-            var (pos, tail, isEmpty) = change.Path;
             switch (change)
             {
-                case Insert insert:
+                case I<Insert> insert:
+                { 
+                    var ((pos, tail, isEmpty), ui) = insert.V.V;
                     if (isEmpty)
-                        root.Content = CreateUI(insert.UI);
+                        root.Content = CreateElement(ui);
                     else
-                        Locate(tail, root).Children.Insert(pos, CreateUI(insert.UI));
+                        Locate(tail, root).Children.Insert(pos, CreateElement(ui));
                     break;
-
-                case Update update:
-                    var elem = isEmpty ? (UIElement)root.Content : Locate(tail, root).Children[pos];
-                    Update(update.UI, elem);
+                }
+                case I<Update> update:
+                {
+                    var ((pos, tail, isEmpty), ui) = update.V.V;
+                    var elem = isEmpty ? (UIElement) root.Content : Locate(tail, root).Children[pos];
+                    Update(ui, elem);
                     break;
-
-                case Replace replace:
+                }
+                case I<Replace> replace:
+                {
+                    var ((pos, tail, isEmpty), ui) = replace.V.V;
+                    var elem = CreateElement(ui);
                     if (isEmpty)
-                        root.Content = CreateUI(replace.UI);
+                        root.Content = elem;
                     else
                     {
                         var children = Locate(tail, root).Children;
                         children.RemoveAt(pos);
-                        children.Insert(pos, CreateUI(replace.UI));
+                        children.Insert(pos, elem);
                     }
                     break;
-
-                case Remove _:
+                }
+                case I<Remove> remove:
+                {
+                    var (pos, tail, isEmpty) = remove.V.V;
                     if (!isEmpty)
                         Locate(tail, root).Children.RemoveAt(pos);
                     break;
-
+                }
                 // todo: Leaky API, how do I know that Event is handled elsewhere
-                case UIChange.Message _:
+                case I<Event> _:
                     // do nothing for events because they are raised before applying update in main MVU loop
                     break;
             }
@@ -63,41 +70,68 @@ namespace Tea.Wpf
         private static Pnl Locate(ImList<int> path, ContentControl root) =>
             path.IsEmpty ? (Pnl)root.Content : (Pnl)Locate(path.Tail, root).Children[path.Head];
 
-        private static UIElement CreateUI(UI.U ui)
+        private static UIElement CreateElement(UI.U ui)
         {
             switch (ui)
             {
-                case I<Text.I> text:
+                case I<Text> text:
                     return new Label { Content = text.V.V };
 
-                case I<Input.I> input:
+                case I<Input> input:
+                {
                     var (content, changed) = input.V.V;
                     var tb = new TextBox { Text = content };
                     tb.TextChanged += (sender, _) => changed.Send(((TextBox)sender).Text);
                     return tb;
-                
-                case I<Button.I> button:
+                }
+                case I<Button> button:
+                {
                     var (label, clicked) = button.V.V;
                     var b = new Btn { Content = label };
                     b.Click += (sender, _) => clicked.Send(Unit.unit);
                     return b;
-                
+                }
                 case I<Panel> panel:
-                    var (layout, elems) = panel.Val();
+                {
+                    var (layout, elems) = panel.Value();
                     var orientation = layout == Layout.Vertical ? Orientation.Vertical : Orientation.Horizontal;
-                    var p = new StackPanel { Orientation = orientation };
-                    elems.Map(CreateUI).Apply(e => p.Children.Add(e));
+                    var p = new StackPanel {Orientation = orientation};
+                    elems.Map(CreateElement).Apply(e => p.Children.Add(e));
                     return p;
-                
-                case I<Check.I> check:
-                    var (checkLabel, isChecked, checkChanged) = check.V.V;
-                    var c = new CheckBox { Content = checkLabel, IsChecked = isChecked };
-                    c.Checked += (s, _) => checkChanged.Send(true);
-                    c.Unchecked += (s, _) => checkChanged.Send(false);
+                }
+                case I<Check> check:
+                {
+                    var (label, isChecked, changed) = check.V.V;
+                    var c = new CheckBox { Content = label, IsChecked = isChecked };
+                    c.Checked += (s, _) => changed.Send(true);
+                    c.Unchecked += (s, _) => changed.Send(false);
                     return c;
+                }
+                default: 
+                    throw new NotSupportedException("The type of UI is not supported: " + ui.GetType());
             }
+        }
 
-            throw new NotSupportedException("The type of UI is not supported: " + ui.GetType());
+        private static void Update(UI.U ui, UIElement elem)
+        {
+            switch (ui)
+            {
+                case I<Text> t when elem is Label l:
+                    l.Content = t.V;
+                    break;
+
+                case I<Input> i when elem is TextBox tb:
+                    tb.Text = i.V.V.Content;
+                    break;
+
+                case I<Button> b when elem is Btn bt:
+                    bt.Content = b.V.V.Label;
+                    break;
+
+                case I<Check> c when elem is CheckBox cb:
+                    (cb.Content, cb.IsChecked) = (c.V.V.Label, c.V.V.IsChecked);
+                    break;
+            }
         }
 
         //private static readonly Thickness DefaultMargin = new Thickness(2);
@@ -117,27 +151,5 @@ namespace Tea.Wpf
         //    });
         //    return elem;
         //}
-
-        private static void Update(UI.U ui, UIElement elem)
-        {
-            switch (ui)
-            {
-                case I<Text.I> t when elem is Label l:
-                    l.Content = t.V;
-                    break;
-
-                case I<Input.I> i when elem is TextBox tb:
-                    tb.Text = i.V.V.Content;
-                    break;
-
-                case I<Button.I> b when elem is Btn bt:
-                    bt.Content = b.V.V.Label;
-                    break;
-
-                case I<Check.I> c when elem is CheckBox cb:
-                    (cb.Content, cb.IsChecked) = (c.V.V.Label, c.V.V.IsChecked);
-                    break;
-            }
-        }
     }
 }

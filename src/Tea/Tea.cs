@@ -6,10 +6,10 @@ namespace Tea
     using System;
     using ImTools;
     using static ImToolsExt;
-    using static UIChange;
 
     // todo: can we do like this?
-    // public sealed class MessageR<M> : Case<MessageR<M>, Ref<Ref<Action<M>>>> { }
+    //public sealed class MessageR<M> : Case<MessageR<M>, Ref<Ref<Action<M>>>> { }
+
     public struct MessageRef<M>
     {
         public Ref<Ref<Action<M>>> Ref;
@@ -112,48 +112,21 @@ namespace Tea
 
     public enum Layout { Horizontal, Vertical }
 
-    public sealed class UI : Union<UI, Text.I, Input.I, Button.I, Check.I, Panel> { }
-    public sealed class Text   : Case<Text, string> { }
-    public sealed class Input  : Case<Input, (string Content, MessageRef<string> Changed)> { }
-    public sealed class Button : Case<Button, (string Label, MessageRef<Unit> Clicked)> { }
-    public sealed class Check  : Case<Check, (string Label, bool IsChecked, MessageRef<bool> Changed)> { }
+    /// UI elements
+    public sealed class UI : Union<UI, Text, Input, Button, Check, Panel> { }
+    public sealed class Text   : Rec<Text, string> { }
+    public sealed class Input  : Rec<Input, (string Content, MessageRef<string> Changed)> { }
+    public sealed class Button : Rec<Button, (string Label, MessageRef<Unit> Clicked)> { }
+    public sealed class Check  : Rec<Check, (string Label, bool IsChecked, MessageRef<bool> Changed)> { }
     public sealed class Panel  : Rec<Panel, (Layout Layout, ImList<UI.U> Elements)> { }
 
     /// UI component update and event redirection.
-    public abstract class UIChange
-    {
-        public readonly ImList<int> Path;
-        protected UIChange(ImList<int> path) => Path = path;
-
-        public class Insert : UIChange
-        {
-            public readonly UI.U UI;
-            public Insert(ImList<int> path, UI.U ui) : base(path) => UI = ui;
-        }
-
-        public class Update : UIChange
-        {
-            public readonly UI.U UI;
-            public Update(ImList<int> path, UI.U ui) : base(path) => UI = ui;
-        }
-
-        public class Replace : UIChange
-        {
-            public readonly UI.U UI;
-            public Replace(ImList<int> path, UI.U ui) : base(path) => UI = ui;
-        }
-
-        public class Remove : UIChange
-        {
-            public Remove(ImList<int> path) : base(path) { }
-        }
-
-        public class Message : UIChange
-        {
-            public readonly Action Apply;
-            public Message(Action apply) : base(ImList<int>.Empty) => Apply = apply;
-        }
-    }
+    public sealed class Patch : Union<Patch, Insert, Update, Replace, Remove, Event> { }
+    public sealed class Insert  : Rec<Insert, (ImList<int> Path, UI.U UI)> { }
+    public sealed class Update  : Rec<Update, (ImList<int> Path, UI.U UI)> { }
+    public sealed class Replace : Rec<Replace, (ImList<int> Path, UI.U UI)> { }
+    public sealed class Remove  : Rec<Remove, ImList<int>> { }
+    public sealed class Event   : Rec<Event, Action> { }
 
     /// UI with message M.
     public class UI<M>
@@ -198,7 +171,7 @@ namespace Tea
 
     public interface INativeUI
     {
-        void ApplyChanges(ImList<UIChange> changes);
+        void ApplyPatches(ImList<Patch.U> patches);
     }
 
     public static class UIElements
@@ -262,57 +235,59 @@ namespace Tea
 
         /// Returns a list of UI updates from two UI components.
         /// To ensure correct insert and removal sequence where the insert/remove index are existing.
-        public static ImList<UIChange> Diff<M1, M2>(this UI<M1> a, UI<M2> b) =>
-            Diff(ImList<UIChange>.Empty, a.Element, b.Element, path: ImList<int>.Empty, pos: 0);
+        public static ImList<Patch.U> Diff<M1, M2>(this UI<M1> a, UI<M2> b) =>
+            Diff(ImList<Patch.U>.Empty, a.Element, b.Element, path: ImList<int>.Empty, pos: 0);
 
-        private static ImList<UIChange> Diff(this ImList<UIChange> changes, UI.U a, UI.U b, ImList<int> path, int pos)
+        private static ImList<Patch.U> Diff(this ImList<Patch.U> patches,
+            UI.U a, UI.U b, ImList<int> path, int pos)
         {
             if (ReferenceEquals(a, b))
-                return changes;
+                return patches;
 
-            if (a is I<Text.I> textA && b is I<Text.I> textB)
-                return textA.V.V == textB.V.V ? changes : changes.Prepend(new Update(path, b));
+            if (a is I<Text> textA && b is I<Text> textB)
+                return textA.V.V == textB.V.V ? patches : patches.Prepend(Patch.Of(Update.Of((path, b))));
 
-            if (a is I<Button.I> buttonA && b is I<Button.I> buttonB)
+            if (a is I<Button> buttonA && b is I<Button> buttonB)
             {
                 if (buttonA.V.V.Label != buttonB.V.V.Label)
-                    changes = changes.Prepend(new Update(path, b));
-                return changes.Prepend(new UIChange.Message(buttonA.V.V.Clicked.Updater(buttonB.V.V.Clicked)));
+                    patches = patches.Prepend(Patch.Of(Update.Of((path, b))));
+                return patches.Prepend(Patch.Of(Event.Of(buttonA.V.V.Clicked.Updater(buttonB.V.V.Clicked))));
             }
 
-            if (a is I<Input.I> inputA && b is I<Input.I> inputB)
+            if (a is I<Input> inputA && b is I<Input> inputB)
             {
                 if (inputA.V.V.Content != inputB.V.V.Content)
-                    changes = changes.Prepend(new Update(path, b));
-                return changes.Prepend(new UIChange.Message(inputA.V.V.Changed.Updater(inputB.V.V.Changed)));
+                    patches = patches.Prepend(Patch.Of(Update.Of((path, b))));
+                return patches.Prepend(Patch.Of(Event.Of(inputA.V.V.Changed.Updater(inputB.V.V.Changed))));
             }
 
             // we can do this a different fluent way
-            if (a is I<Check.I> checkA && b is I<Check.I> checkB)
-                return new UIChange.Message(checkA.V.V.Changed.Updater(checkB.V.V.Changed))
+            if (a is I<Check> checkA && b is I<Check> checkB)
+                return Patch.Of(Event.Of(checkA.V.V.Changed.Updater(checkB.V.V.Changed)))
                     .Cons(checkA.V.V.IsChecked == checkB.V.V.IsChecked && checkA.V.V.Label == checkB.V.V.Label 
-                        ? changes : new Update(path, b).Cons(changes));
+                        ? patches : Patch.Of(Update.Of((path, b))).Cons(patches));
 
             if (a is I<Panel> panelA && b is I<Panel> panelB)
                 return panelA.V.V.Layout == panelB.V.V.Layout
-                    ? changes.Diff(panelA.V.V.Elements, panelB.V.V.Elements, path, pos)
-                    : changes.Prepend(new Replace(path, b));
+                    ? patches.Diff(panelA.V.V.Elements, panelB.V.V.Elements, path, pos)
+                    : patches.Prepend(Patch.Of(Replace.Of((path, b))));
 
-            return changes.Prepend(new Replace(path, b));
+            return patches.Prepend(Patch.Of(Replace.Of((path, b))));
         }
 
-        private static ImList<UIChange> Diff(this ImList<UIChange> changes, ImList<UI.U> a, ImList<UI.U> b, ImList<int> path, int pos)
+        private static ImList<Patch.U> Diff(this ImList<Patch.U> patches, 
+            ImList<UI.U> a, ImList<UI.U> b, ImList<int> path, int pos)
         {
             if (a.IsEmpty && b.IsEmpty)
-                return changes;
+                return patches;
 
             if (a.IsEmpty)
-                return b.Fold(changes, (ui, i, tail) => new Insert((pos + i).Cons(path), ui).Cons(tail));
+                return b.Fold(patches, (ui, i, tail) => Patch.Of(Insert.Of(((pos + i).Cons(path), ui))).Cons(tail));
 
             if (b.IsEmpty)
-                return a.Fold(changes, (_, i, tail) => new Remove((pos + i).Cons(path)).Cons(tail));
+                return a.Fold(patches, (_, i, tail) => Patch.Of(Remove.Of((pos + i).Cons(path))).Cons(tail));
 
-            return  changes
+            return  patches
                 .Diff(a.Head, b.Head, pos.Cons(path), 0)
                 .Diff(a.Tail, b.Tail, path, pos + 1);
         }
@@ -323,16 +298,16 @@ namespace Tea
             // Render and insert initial UI from the model
             var initialUI = application.View();
             initialUI.Send = m => UpdateViewLoop(application, initialUI, m);
-            nativeUI.ApplyChanges(new Insert(ImList<int>.Empty, initialUI.Element).Cons<UIChange>());
+            nativeUI.ApplyPatches(Patch.Of(Insert.Of((ImList<int>.Empty, initialUI.Element))).Cons<Patch.U>());
 
             void UpdateViewLoop(IComponent<T> app, UI<IMessage<T>> ui, IMessage<T> msg)
             {
                 var newModel = app.Update(msg);
                 var newUI = newModel.View();
                 newUI.Send = m => UpdateViewLoop(newModel, newUI, m);
-                var changes = ui.Diff(newUI);
-                changes.Apply(x => (x as UIChange.Message)?.Apply());
-                nativeUI.ApplyChanges(changes);
+                var patches = ui.Diff(newUI);
+                patches.Apply(x => (x as I<Event>)?.V.V());
+                nativeUI.ApplyPatches(patches);
             }
         }
     }
