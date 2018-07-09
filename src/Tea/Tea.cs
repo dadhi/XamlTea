@@ -1,14 +1,15 @@
-﻿using System;
-using ImTools;
-
-// ReSharper disable InconsistentNaming
+﻿// ReSharper disable InconsistentNaming
 #pragma warning disable 659
 
 namespace Tea
 {
+    using System;
+    using ImTools;
     using static ImToolsExt;
     using static UIChange;
 
+    // todo: can we do like this?
+    // public sealed class MessageR<M> : Case<MessageR<M>, Ref<Ref<Action<M>>>> { }
     public struct MessageRef<M>
     {
         public Ref<Ref<Action<M>>> Ref;
@@ -111,62 +112,12 @@ namespace Tea
 
     public enum Layout { Horizontal, Vertical }
 
-    public abstract class UI
-    {
-        public sealed class Text : UI
-        {
-            public readonly string Content;
-            public Text(string text) => Content = text;
-
-            public override string ToString() => $"Text('{Content}')";
-        }
-
-        public sealed class Input : UI
-        {
-            public readonly string Content;
-            public readonly MessageRef<string> Changed;
-
-            public Input(string text, MessageRef<string> changed) =>
-                (Content, Changed) = (text, changed);
-
-            public override string ToString() => $"Input('{Content}')";
-        }
-
-        public sealed class Button : UI
-        {
-            public readonly string Label;
-            public readonly MessageRef<Unit> Clicked;
-
-            public Button(string label, MessageRef<Unit> clicked) =>
-                (Label, Clicked) = (label, clicked);
-
-            public override string ToString() => $"Button('{Label}')";
-        }
-
-        public sealed class Check : UI
-        {
-            public readonly string Label;
-            public readonly bool IsChecked;
-            public readonly MessageRef<bool> Changed;
-
-            public Check(string label, bool isChecked, MessageRef<bool> changed) =>
-                (Label, IsChecked, Changed) = (label, isChecked, changed);
-
-            public override string ToString() => $"Check({IsChecked},'{Label}')";
-        }
-
-        public sealed class Panel : UI
-        {
-            public readonly Layout Layout;
-            public readonly ImList<UI> Elements;
-
-            public Panel(Layout layout, ImList<UI> elements) =>
-                (Layout, Elements) = (layout, elements);
-
-            public override string ToString() => 
-                (Layout == Layout.Vertical ? "Col(" : "Row(") + Elements + ")";
-        }
-    }
+    public sealed class UI : Union<UI, Text.I, Input.I, Button.I, Check.I, Panel> { }
+    public sealed class Text   : Case<Text, string> { }
+    public sealed class Input  : Case<Input, (string Content, MessageRef<string> Changed)> { }
+    public sealed class Button : Case<Button, (string Label, MessageRef<Unit> Clicked)> { }
+    public sealed class Check  : Case<Check, (string Label, bool IsChecked, MessageRef<bool> Changed)> { }
+    public sealed class Panel  : Rec<Panel, (Layout Layout, ImList<UI.U> Elements)> { }
 
     /// UI component update and event redirection.
     public abstract class UIChange
@@ -176,20 +127,20 @@ namespace Tea
 
         public class Insert : UIChange
         {
-            public readonly UI UI;
-            public Insert(ImList<int> path, UI ui) : base(path) => UI = ui;
+            public readonly UI.U UI;
+            public Insert(ImList<int> path, UI.U ui) : base(path) => UI = ui;
         }
 
         public class Update : UIChange
         {
-            public readonly UI UI;
-            public Update(ImList<int> path, UI ui) : base(path) => UI = ui;
+            public readonly UI.U UI;
+            public Update(ImList<int> path, UI.U ui) : base(path) => UI = ui;
         }
 
         public class Replace : UIChange
         {
-            public readonly UI UI;
-            public Replace(ImList<int> path, UI ui) : base(path) => UI = ui;
+            public readonly UI.U UI;
+            public Replace(ImList<int> path, UI.U ui) : base(path) => UI = ui;
         }
 
         public class Remove : UIChange
@@ -207,9 +158,9 @@ namespace Tea
     /// UI with message M.
     public class UI<M>
     {
-        public readonly UI Element;
+        public readonly UI.U Element;
         public Action<M> Send;
-        public UI(UI element, Action<M> send) => (Element, Send) = (element, send);
+        public UI(UI.U element, Action<M> send) => (Element, Send) = (element, send);
     }
 
     /// Base interface for component with Update, View but without Commands, Subscriptions.
@@ -253,21 +204,21 @@ namespace Tea
     public static class UIElements
     {
         public static UI<M> text<M>(string text) =>
-            new UI<M>(new UI.Text(text), Message.Empty);
+            new UI<M>(UI.Of(Text.Of(text)), Message.Empty);
 
         public static UI<M> text<M>(object textObj) => text<M>("" + textObj);
 
         public static UI<M> input<M>(string text, Func<string, M> onChange)
         {
             var m = Message.EmptyRef<string>();
-            return new UI<M>(new UI.Input(text, m), Message.Empty)
+            return new UI<M>(UI.Of(Input.Of((text, m))), Message.Empty)
                 .Do(x => m.Set(s => x.Send(onChange(s))));
         }
 
         public static UI<M> button<M>(string label, Func<M> onClick)
         {
             var m = Message.EmptyRef<Unit>();
-            return new UI<M>(new UI.Button(label, m), Message.Empty)
+            return new UI<M>(UI.Of(Button.Of((label, m))), Message.Empty)
                 .Do(x => m.Set(_ => x.Send(onClick())));
         }
 
@@ -277,13 +228,13 @@ namespace Tea
         public static UI<M> check<M>(string label, bool isChecked, Func<bool, M> onCheck)
         {
             var m = Message.EmptyRef<bool>();
-            return new UI<M>(new UI.Check(label, isChecked, m), Message.Empty)
+            return new UI<M>(UI.Of(Check.Of((label, isChecked, m))), Message.Empty)
                 .Do(x => m.Set(b => x.Send(onCheck(b))));
         }
 
         public static UI<M> panel<M>(Layout layout, ImList<UI<M>> elements)
         {
-            var ui = new UI<M>(new UI.Panel(layout, elements.Map(x => x.Element)), Message.Empty);
+            var ui = new UI<M>(UI.Of(Panel.Of((layout, elements.Map(x => x.Element)))), Message.Empty);
             void Send(M m) => ui.Send(m);
             elements.Apply(x => x.Send = Send);
             return ui;
@@ -314,43 +265,43 @@ namespace Tea
         public static ImList<UIChange> Diff<M1, M2>(this UI<M1> a, UI<M2> b) =>
             Diff(ImList<UIChange>.Empty, a.Element, b.Element, path: ImList<int>.Empty, pos: 0);
 
-        private static ImList<UIChange> Diff(this ImList<UIChange> changes, UI a, UI b, ImList<int> path, int pos)
+        private static ImList<UIChange> Diff(this ImList<UIChange> changes, UI.U a, UI.U b, ImList<int> path, int pos)
         {
             if (ReferenceEquals(a, b))
                 return changes;
 
-            if (a is UI.Text textA && b is UI.Text textB)
-                return textA.Content == textB.Content ? changes : changes.Prepend(new Update(path, b));
+            if (a is I<Text.I> textA && b is I<Text.I> textB)
+                return textA.V.V == textB.V.V ? changes : changes.Prepend(new Update(path, b));
 
-            if (a is UI.Button buttonA && b is UI.Button buttonB)
+            if (a is I<Button.I> buttonA && b is I<Button.I> buttonB)
             {
-                if (buttonA.Label != buttonB.Label)
-                    changes = changes.Prepend(new Update(path, buttonB));
-                return changes.Prepend(new UIChange.Message(buttonA.Clicked.Updater(buttonB.Clicked)));
+                if (buttonA.V.V.Label != buttonB.V.V.Label)
+                    changes = changes.Prepend(new Update(path, b));
+                return changes.Prepend(new UIChange.Message(buttonA.V.V.Clicked.Updater(buttonB.V.V.Clicked)));
             }
 
-            if (a is UI.Input inputA && b is UI.Input inputB)
+            if (a is I<Input.I> inputA && b is I<Input.I> inputB)
             {
-                if (inputA.Content != inputB.Content)
-                    changes = changes.Prepend(new Update(path, inputB));
-                return changes.Prepend(new UIChange.Message(inputA.Changed.Updater(inputB.Changed)));
+                if (inputA.V.V.Content != inputB.V.V.Content)
+                    changes = changes.Prepend(new Update(path, b));
+                return changes.Prepend(new UIChange.Message(inputA.V.V.Changed.Updater(inputB.V.V.Changed)));
             }
 
             // we can do this a different fluent way
-            if (a is UI.Check checkA && b is UI.Check checkB)
-                return new UIChange.Message(checkA.Changed.Updater(checkB.Changed))
-                    .Cons(checkA.IsChecked == checkB.IsChecked && checkA.Label == checkB.Label 
-                        ? changes : new Update(path, checkB).Cons(changes));
+            if (a is I<Check.I> checkA && b is I<Check.I> checkB)
+                return new UIChange.Message(checkA.V.V.Changed.Updater(checkB.V.V.Changed))
+                    .Cons(checkA.V.V.IsChecked == checkB.V.V.IsChecked && checkA.V.V.Label == checkB.V.V.Label 
+                        ? changes : new Update(path, b).Cons(changes));
 
-            if (a is UI.Panel panelA && b is UI.Panel panelB)
-                return panelA.Layout == panelB.Layout
-                    ? changes.Diff(panelA.Elements, panelB.Elements, path, pos)
-                    : changes.Prepend(new Replace(path, panelB));
+            if (a is I<Panel> panelA && b is I<Panel> panelB)
+                return panelA.V.V.Layout == panelB.V.V.Layout
+                    ? changes.Diff(panelA.V.V.Elements, panelB.V.V.Elements, path, pos)
+                    : changes.Prepend(new Replace(path, b));
 
             return changes.Prepend(new Replace(path, b));
         }
 
-        private static ImList<UIChange> Diff(this ImList<UIChange> changes, ImList<UI> a, ImList<UI> b, ImList<int> path, int pos)
+        private static ImList<UIChange> Diff(this ImList<UIChange> changes, ImList<UI.U> a, ImList<UI.U> b, ImList<int> path, int pos)
         {
             if (a.IsEmpty && b.IsEmpty)
                 return changes;

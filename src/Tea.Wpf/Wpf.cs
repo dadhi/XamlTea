@@ -3,6 +3,8 @@ using System.Windows;
 using System.Windows.Controls;
 using ImTools;
 using static Tea.UIChange;
+using Pnl = System.Windows.Controls.Panel;
+using Btn = System.Windows.Controls.Button;
 
 namespace Tea.Wpf
 {
@@ -58,56 +60,41 @@ namespace Tea.Wpf
             }
         }
 
-        private static Panel Locate(ImList<int> path, ContentControl root) =>
-            path.IsEmpty ? (Panel)root.Content : (Panel)Locate(path.Tail, root).Children[path.Head];
+        private static Pnl Locate(ImList<int> path, ContentControl root) =>
+            path.IsEmpty ? (Pnl)root.Content : (Pnl)Locate(path.Tail, root).Children[path.Head];
 
-        private static UIElement CreateUI(UI ui)
+        private static UIElement CreateUI(UI.U ui)
         {
-            if (ui == null)
-                throw new ArgumentNullException(nameof(ui));
-
-            if (ui is UI.Text text)
-                return new Label { Content = text.Content };
-
-            if (ui is UI.Input input)
+            switch (ui)
             {
-                var elem = new TextBox { Text = input.Content };
-                var m = input.Changed;
-                elem.TextChanged += (sender, _) => m.Send(((TextBox)sender).Text);
-                return elem;
-            }
+                case I<Text.I> text:
+                    return new Label { Content = text.V.V };
 
-            if (ui is UI.Button b)
-            {
-                var elem = new Button { Content = b.Label };
-                var m = b.Clicked;
-                elem.Click += (sender, _) => m.Send(Unit.unit);
-                return elem;
-            }
-
-            if (ui is UI.Panel panel)
-            {
-                var orientation = panel.Layout == Layout.Vertical ? Orientation.Vertical : Orientation.Horizontal;
-                var elem = new StackPanel { Orientation = orientation };
-
-                var kids = panel.Elements.Map(CreateUI);
-                kids.Apply(x => elem.Children.Add(x));
-                return elem;
-            }
-
-            if (ui is UI.Check check)
-            {
-                var elem = new CheckBox
-                {
-                    Content = check.Label,
-                    IsChecked = check.IsChecked,
-                };
-
-                var m = check.Changed;
-                elem.Checked += (sender, _) => m.Send(true);
-                elem.Unchecked += (sender, _) => m.Send(false);
-
-                return elem;
+                case I<Input.I> input:
+                    var (content, changed) = input.V.V;
+                    var tb = new TextBox { Text = content };
+                    tb.TextChanged += (sender, _) => changed.Send(((TextBox)sender).Text);
+                    return tb;
+                
+                case I<Button.I> button:
+                    var (label, clicked) = button.V.V;
+                    var b = new Btn { Content = label };
+                    b.Click += (sender, _) => clicked.Send(Unit.unit);
+                    return b;
+                
+                case I<Panel> panel:
+                    var (layout, elems) = panel.Val();
+                    var orientation = layout == Layout.Vertical ? Orientation.Vertical : Orientation.Horizontal;
+                    var p = new StackPanel { Orientation = orientation };
+                    elems.Map(CreateUI).Apply(e => p.Children.Add(e));
+                    return p;
+                
+                case I<Check.I> check:
+                    var (checkLabel, isChecked, checkChanged) = check.V.V;
+                    var c = new CheckBox { Content = checkLabel, IsChecked = isChecked };
+                    c.Checked += (s, _) => checkChanged.Send(true);
+                    c.Unchecked += (s, _) => checkChanged.Send(false);
+                    return c;
             }
 
             throw new NotSupportedException("The type of UI is not supported: " + ui.GetType());
@@ -131,25 +118,24 @@ namespace Tea.Wpf
         //    return elem;
         //}
 
-        private static void Update(UI ui, UIElement elem)
+        private static void Update(UI.U ui, UIElement elem)
         {
             switch (ui)
             {
-                case UI.Text t when elem is Label l:
-                    l.Content = t.Content;
+                case I<Text.I> t when elem is Label l:
+                    l.Content = t.V;
                     break;
 
-                case UI.Input i when elem is TextBox tb:
-                    tb.Text = i.Content;
+                case I<Input.I> i when elem is TextBox tb:
+                    tb.Text = i.V.V.Content;
                     break;
 
-                case UI.Button b when elem is Button bt:
-                    bt.Content = b.Label;
+                case I<Button.I> b when elem is Btn bt:
+                    bt.Content = b.V.V.Label;
                     break;
 
-                case UI.Check c when elem is CheckBox cb:
-                    cb.Content = c.Label;
-                    cb.IsChecked = c.IsChecked;
+                case I<Check.I> c when elem is CheckBox cb:
+                    (cb.Content, cb.IsChecked) = (c.V.V.Label, c.V.V.IsChecked);
                     break;
             }
         }

@@ -53,6 +53,310 @@ namespace ImTools
         }
     }
 
+    /// Void replacement actually usable as type argument and value, e.g. singleton empty record type, () in Haskell https://en.wikipedia.org/wiki/Unit_type
+    public struct Unit
+    {
+        /// Single value
+        public static readonly Unit unit = new Unit();
+
+        /// <inheritdoc />
+        public override string ToString() => "unit";
+    }
+
+    /// Useful for type pattern matching via `case I&lt;T&gt;: ...`
+    public interface I<out T>
+    {
+        T V { get; }
+    }
+
+    public static class Union
+    {
+        /// Less strange (V.V) access to the nested case
+        public static T Val<T>(this I<I<T>> i) => i.V.V;
+
+        internal static string ToString<TName, T>(T value)
+        {
+            var type = typeof(TName);
+            if (type == typeof(Unit)) return "(" + value + ")";
+            var i = type.Name.IndexOf('`');
+            if (i == -1) return type.Name + "(" + value + ")";
+            return type.Name.Substring(0, i) + "(" + value + ")";
+        }
+    }
+
+    public abstract class Rec<TCase, T> : 
+        IEquatable<Rec<TCase, T>>, I<T>
+        where TCase : Rec<TCase, T>, new()
+    {
+        public static TCase Of(T v) => new TCase { V = v };
+
+        public T V { get; private set; }
+
+        public bool Equals(Rec<TCase, T> other) => other != null && EqualityComparer<T>.Default.Equals(V, other.V);
+        public override bool Equals(object obj) => obj is Rec<TCase, T> c && Equals(c);
+        // ReSharper disable once NonReadonlyMemberInGetHashCode
+        public override int GetHashCode() => EqualityComparer<T>.Default.GetHashCode(V);
+        public override string ToString() => Union.ToString<TCase, T>(V);
+    }
+
+    /// Enables one line struct subtyping
+    public abstract class Case<TType, T>
+    {
+        public static I Of(T x) => new I(x);
+
+        public struct I : IEquatable<I>
+        {
+            public T V => _v;
+            public readonly T _v;
+            public I(T v) { _v = v; }
+
+            public bool Equals(I other) => EqualityComparer<T>.Default.Equals(V, other.V);
+            public override bool Equals(object obj) => obj is I c && Equals(c);
+            public override int GetHashCode() => EqualityComparer<T>.Default.GetHashCode(V);
+            public override string ToString() => Union.ToString<TType, T>(V);
+        }
+    }
+
+    public sealed class U<T1, T2> : Union<Unit, T1, T2> { }
+    public abstract class Union<TType, T1, T2>
+    {
+        public interface U { R Map<R>(Func<T1, R> map1, Func<T2, R> map2); }
+
+        public static Case1 Of(T1 x) => new Case1(x);
+        public static Case2 Of(T2 x) => new Case2(x);
+
+        public struct Case1 : U, IEquatable<Case1>, I<T1>
+        {
+            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2) => map1(V);
+            public T1 V => _value;
+
+            public readonly T1 _value;
+            public Case1(T1 x) { _value = x; }
+
+            public bool Equals(Case1 other) => EqualityComparer<T1>.Default.Equals(V, other.V);
+            public override bool Equals(object obj) => obj is Case1 c1 && Equals(c1);
+            public override int GetHashCode() => EqualityComparer<T1>.Default.GetHashCode(V);
+            public override string ToString() => Union.ToString<TType, T1>(V);
+        }
+
+        public struct Case2 : U, IEquatable<Case2>, I<T2>
+        {
+            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2) => map2(V);
+
+            public T2 V => _value;
+            public readonly T2 _value;
+            public Case2(T2 x) { _value = x; }
+
+            public bool Equals(Case2 other) => EqualityComparer<T2>.Default.Equals(V, other.V);
+
+            public override bool Equals(object obj) => obj is Case2 c2 && Equals(c2);
+            public override int GetHashCode() => EqualityComparer<T2>.Default.GetHashCode(V);
+            public override string ToString() => Union.ToString<TType, T2>(V);
+        }
+    }
+
+    public sealed class U<T1, T2, T3> : Union<Unit, T1, T2, T3> { }
+    public abstract class Union<TType, T1, T2, T3>
+    {
+        public interface U { R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3); }
+
+        public static Case1 Of(T1 x) => new Case1(x);
+        public static Case2 Of(T2 x) => new Case2(x);
+        public static Case3 Of(T3 x) => new Case3(x);
+
+        public struct Case1 : U, IEquatable<Case1>, I<T1>
+        {
+            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3) => map1(V);
+            public T1 V => _value;
+
+            public readonly T1 _value;
+            public Case1(T1 x) { _value = x; }
+
+            public bool Equals(Case1 other) => EqualityComparer<T1>.Default.Equals(V, other.V);
+            public override bool Equals(object obj) => obj is Case1 c && Equals(c);
+            public override int GetHashCode() => EqualityComparer<T1>.Default.GetHashCode(V);
+            public override string ToString() => Union.ToString<TType, T1>(V);
+        }
+
+        public struct Case2 : U, IEquatable<Case2>, I<T2>
+        {
+            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3) => map2(V);
+
+            public T2 V => _value;
+            public readonly T2 _value;
+            public Case2(T2 x) { _value = x; }
+
+            public bool Equals(Case2 other) => EqualityComparer<T2>.Default.Equals(V, other.V);
+            public override bool Equals(object obj) => obj is Case2 c && Equals(c);
+            public override int GetHashCode() => EqualityComparer<T2>.Default.GetHashCode(V);
+            public override string ToString() => Union.ToString<TType, T2>(V);
+        }
+
+        public struct Case3 : U, IEquatable<Case3>, I<T3>
+        {
+            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3) => map3(V);
+
+            public T3 V => _value;
+            public readonly T3 _value;
+            public Case3(T3 x) { _value = x; }
+
+            public bool Equals(Case3 other) => EqualityComparer<T3>.Default.Equals(V, other.V);
+            public override bool Equals(object obj) => obj is Case3 c && Equals(c);
+            public override int GetHashCode() => EqualityComparer<T3>.Default.GetHashCode(V);
+            public override string ToString() => Union.ToString<TType, T3>(V);
+        }
+    }
+
+    public sealed class U<T1, T2, T3, T4> : Union<Unit, T1, T2, T3, T4> { }
+    public abstract class Union<TType, T1, T2, T3, T4>
+    {
+        public interface U { R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3, Func<T4, R> map4); }
+
+        public static Case1 Of(T1 x) => new Case1(x);
+        public static Case2 Of(T2 x) => new Case2(x);
+        public static Case3 Of(T3 x) => new Case3(x);
+        public static Case4 Of(T4 x) => new Case4(x);
+
+        public struct Case1 : U, IEquatable<Case1>, I<T1>
+        {
+            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3, Func<T4, R> map4) => map1(V);
+            public T1 V => _value;
+
+            public readonly T1 _value;
+            public Case1(T1 x) { _value = x; }
+
+            public bool Equals(Case1 other) => EqualityComparer<T1>.Default.Equals(V, other.V);
+            public override bool Equals(object obj) => obj is Case1 c && Equals(c);
+            public override int GetHashCode() => EqualityComparer<T1>.Default.GetHashCode(V);
+            public override string ToString() => Union.ToString<TType, T1>(V);
+        }
+
+        public struct Case2 : U, IEquatable<Case2>, I<T2>
+        {
+            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3, Func<T4, R> map4) => map2(V);
+
+            public T2 V => _value;
+            public readonly T2 _value;
+            public Case2(T2 x) { _value = x; }
+
+            public bool Equals(Case2 other) => EqualityComparer<T2>.Default.Equals(V, other.V);
+            public override bool Equals(object obj) => obj is Case2 c && Equals(c);
+            public override int GetHashCode() => EqualityComparer<T2>.Default.GetHashCode(V);
+            public override string ToString() => Union.ToString<TType, T2>(V);
+        }
+
+        public struct Case3 : U, IEquatable<Case3>, I<T3>
+        {
+            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3, Func<T4, R> map4) => map3(V);
+
+            public T3 V => _value;
+            public readonly T3 _value;
+            public Case3(T3 x) { _value = x; }
+
+            public bool Equals(Case3 other) => EqualityComparer<T3>.Default.Equals(V, other.V);
+            public override bool Equals(object obj) => obj is Case3 c && Equals(c);
+            public override int GetHashCode() => EqualityComparer<T3>.Default.GetHashCode(V);
+            public override string ToString() => Union.ToString<TType, T3>(V);
+        }
+
+        public struct Case4 : U, IEquatable<Case4>, I<T4>
+        {
+            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3, Func<T4, R> map4) => map4(V);
+
+            public T4 V => _value;
+            public readonly T4 _value;
+            public Case4(T4 x) { _value = x; }
+
+            public bool Equals(Case4 other) => EqualityComparer<T4>.Default.Equals(V, other.V);
+            public override bool Equals(object obj) => obj is Case4 c && Equals(c);
+            public override int GetHashCode() => EqualityComparer<T4>.Default.GetHashCode(V);
+            public override string ToString() => Union.ToString<TType, T4>(V);
+        }
+    }
+
+    public sealed class U<T1, T2, T3, T4, T5> : Union<Unit, T1, T2, T3, T4, T5> { }
+    public abstract class Union<TType, T1, T2, T3, T4, T5>
+    {
+        public interface U { R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3, Func<T4, R> map4, Func<T5, R> map5); }
+
+        public static Case1 Of(T1 x) => new Case1(x);
+        public static Case2 Of(T2 x) => new Case2(x);
+        public static Case3 Of(T3 x) => new Case3(x);
+        public static Case4 Of(T4 x) => new Case4(x);
+        public static Case5 Of(T5 x) => new Case5(x);
+
+        public struct Case1 : U, IEquatable<Case1>, I<T1>
+        {
+            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3, Func<T4, R> map4, Func<T5, R> map5) => map1(V);
+            public T1 V => _value;
+
+            public readonly T1 _value;
+            public Case1(T1 x) { _value = x; }
+
+            public bool Equals(Case1 other) => EqualityComparer<T1>.Default.Equals(V, other.V);
+            public override bool Equals(object obj) => obj is Case1 c && Equals(c);
+            public override int GetHashCode() => EqualityComparer<T1>.Default.GetHashCode(V);
+            public override string ToString() => Union.ToString<TType, T1>(V);
+        }
+
+        public struct Case2 : U, IEquatable<Case2>, I<T2>
+        {
+            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3, Func<T4, R> map4, Func<T5, R> map5) => map2(V);
+
+            public T2 V => _value;
+            public readonly T2 _value;
+            public Case2(T2 x) { _value = x; }
+
+            public bool Equals(Case2 other) => EqualityComparer<T2>.Default.Equals(V, other.V);
+            public override bool Equals(object obj) => obj is Case2 c && Equals(c);
+            public override int GetHashCode() => EqualityComparer<T2>.Default.GetHashCode(V);
+            public override string ToString() => Union.ToString<TType, T2>(V);
+        }
+
+        public struct Case3 : U, IEquatable<Case3>, I<T3>
+        {
+            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3, Func<T4, R> map4, Func<T5, R> map5) => map3(V);
+
+            public T3 V => _value;
+            public readonly T3 _value;
+            public Case3(T3 x) { _value = x; }
+
+            public bool Equals(Case3 other) => EqualityComparer<T3>.Default.Equals(V, other.V);
+            public override bool Equals(object obj) => obj is Case3 c && Equals(c);
+            public override int GetHashCode() => EqualityComparer<T3>.Default.GetHashCode(V);
+            public override string ToString() => Union.ToString<TType, T3>(V);
+        }
+
+        public struct Case4 : U, IEquatable<Case4>, I<T4>
+        {
+            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3, Func<T4, R> map4, Func<T5, R> map5) => map4(V);
+
+            public T4 V => _value;
+            public readonly T4 _value;
+            public Case4(T4 x) { _value = x; }
+
+            public bool Equals(Case4 other) => EqualityComparer<T4>.Default.Equals(V, other.V);
+            public override bool Equals(object obj) => obj is Case4 c && Equals(c);
+            public override int GetHashCode() => EqualityComparer<T4>.Default.GetHashCode(V);
+            public override string ToString() => Union.ToString<TType, T4>(V);
+        }
+
+        public struct Case5 : U, IEquatable<Case5>, I<T5>
+        {
+            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3, Func<T4, R> map4, Func<T5, R> map5) => map5(V);
+
+            public T5 V => _value;
+            public readonly T5 _value;
+            public Case5(T5 x) { _value = x; }
+
+            public bool Equals(Case5 other) => EqualityComparer<T5>.Default.Equals(V, other.V);
+            public override bool Equals(object obj) => obj is Case5 c && Equals(c);
+            public override int GetHashCode() => EqualityComparer<T5>.Default.GetHashCode(V);
+            public override string ToString() => Union.ToString<TType, T5>(V);
+        }
+    }
+
+
     /// <summary>Methods to work with immutable arrays, and general array sugar.</summary>
     public static class ArrayTools
     {
@@ -472,19 +776,8 @@ namespace ImTools
         /// <summary>Compares current Referred value with <paramref name="currentValue"/> and if equal replaces current with <paramref name="newValue"/></summary>
         /// <param name="currentValue"></param> <param name="newValue"></param>
         /// <returns>True if current value was replaced with new value, and false if current value is outdated (already changed by other party).</returns>
-        /// <example><code lang="cs"><[!CDATA[
-        /// var value = SomeRef.Value;
-        /// if (!SomeRef.TrySwapIfStillCurrent(value, Update(value))
-        ///     SomeRef.Swap(v => Update(v)); // fallback to normal Swap with delegate allocation
-        /// ]]></code></example>
         public bool TrySwapIfStillCurrent(T currentValue, T newValue) =>
             Interlocked.CompareExchange(ref _value, newValue, currentValue) == currentValue;
-
-        /// <summary>Equals of the value</summary>
-        public override bool Equals(object obj) => obj is Ref<T> r && Equals(r._value, _value);
-
-        /// <summary>Hash-code of the value</summary>
-        public override int GetHashCode() => _value?.GetHashCode() ?? 0;
 
         /// <summary>Value to string</summary>
         public override string ToString() => "Ref(" + _value + ")";

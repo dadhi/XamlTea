@@ -3,12 +3,6 @@ using ImTools;
 
 namespace Tea
 {
-    public struct Unit
-    {
-        public static readonly Unit unit = new Unit();
-        public override string ToString() => "unit";
-    }
-
     public static class ImToolsExt
     {
         public static ImList<T> list<T>(params T[] items)
