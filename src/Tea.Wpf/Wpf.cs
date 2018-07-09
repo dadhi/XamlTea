@@ -16,10 +16,10 @@ namespace Tea.Wpf
         private WpfUI(ContentControl rootControl) => _rootControl = rootControl;
 
         /// <summary>Applies the updates.</summary>
-        public void ApplyPatches(ImList<Patch.U> changes) =>
+        public void ApplyPatches(ImList<Patch.I> changes) =>
             changes.Apply(x => _rootControl.Dispatcher.Invoke(() => Apply(x, _rootControl)));
 
-        private static void Apply(Patch.U change, ContentControl root)
+        private static void Apply(Patch.I change, ContentControl root)
         {
             switch (change)
             {
@@ -70,7 +70,7 @@ namespace Tea.Wpf
         private static Pnl Locate(ImList<int> path, ContentControl root) =>
             path.IsEmpty ? (Pnl)root.Content : (Pnl)Locate(path.Tail, root).Children[path.Head];
 
-        private static UIElement CreateElement(UI.U ui)
+        private static UIElement CreateElement(UI.I ui)
         {
             switch (ui)
             {
@@ -112,7 +112,7 @@ namespace Tea.Wpf
             }
         }
 
-        private static void Update(UI.U ui, UIElement elem)
+        private static void Update(UI.I ui, UIElement elem)
         {
             switch (ui)
             {
