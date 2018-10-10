@@ -13,7 +13,7 @@ using static Free.MyIO;
 
 namespace Free
 {
-    [TestFixture]
+    [TestFixture, Ignore("experiment")]
     class Program
     {
         [Test]

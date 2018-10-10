@@ -3,16 +3,15 @@
     using System.Text;
     using ImTools;
     using static UIElements;
-    using static ImToolsExt;
     using M = IMessage<ToDoList>;
 
     public class ToDoList : IComponent<ToDoList>
     {
-        public readonly ImList<ToDoItem> Items;
+        public readonly ImZipper<ToDoItem> Items;
         public readonly string NewItem;
         public readonly bool IsNewItemValid;
 
-        public ToDoList(ImList<ToDoItem> items, string newItem = "")
+        public ToDoList(ImZipper<ToDoItem> items, string newItem = "")
         {
             Items = items;
             NewItem = newItem;
@@ -20,14 +19,13 @@
         }
 
         public static ToDoList Init() => 
-            new ToDoList(list(new ToDoItem("foo"), new ToDoItem("bar", true)));
+            new ToDoList(ImZipper.Zip(new ToDoItem("foo"), new ToDoItem("bar", true)));
 
         public override string ToString()
         {
             var s = new StringBuilder();
-            s.Append("{NewItem='").Append(NewItem).Append("'");
-            s.Append(",Items=[");
-            Items.Fold(s, (it, i, _) => (i == 0 ? _ : _.Append(",(")).Append(it.ToString()).Append(')'));
+            s.Append("{NewItem='").Append(NewItem).Append("'").Append(",Items=[");
+            s = Items.Fold(s, (it, i, sb) => (i == 0 ? sb : sb.Append(",(")).Append(it).Append(')'));
             s.Append("]}");
             return s.ToString();
         }
@@ -51,27 +49,30 @@
 
         public ToDoList Update(M message)
         {
-            if (message is EditNewItem editNewItem)
-                return new ToDoList(Items, editNewItem.Text);
+            switch (message)
+            {
+                case EditNewItem editNewItem:
+                    return new ToDoList(Items, editNewItem.Text);
+                
+                case AddNewItem _ when IsNewItemValid:
+                    return new ToDoList(Items.Append(new ToDoItem(NewItem)));
 
-            if (message is AddNewItem)
-                return IsNewItemValid
-                    ? new ToDoList(new ToDoItem(NewItem).Cons(Items))
-                    : this;
+                case RemoveItem removeItem:
+                    return new ToDoList(Items.RemoveAt(removeItem.ItemIndex), NewItem);
 
-            if (message is RemoveItem removeItem)
-                return new ToDoList(Items.RemoveAt(removeItem.ItemIndex), NewItem);
-
-            // propagate the rest of child mgs to child Update
-            if (message is ChildChanged<ToDoItem, ToDoList> itemChanged)
-                return new ToDoList(Items.UpdateAt(itemChanged.Index, x => x.Update(itemChanged.Message)), NewItem);
-
-            return this;
+                case ChildChanged<ToDoItem, ToDoList> itemChanged:
+                    return new ToDoList(Items.UpdateAt(itemChanged.Index, x => x.Update(itemChanged.Message)), NewItem);
+                
+                default: 
+                    return this;
+            }
         }
 
         public UI<M> View() =>
             column(
-                column(Items.Map((it, i) => row(it.In(this, i), button("remove", RemoveItem.It(i))))),
+                column(Items.Map((item, i) => 
+                    row(item.View(this, i), button("remove", RemoveItem.It(i))))),
+                
                 row(input(NewItem, EditNewItem.It)), button("Add", AddNewItem.It));
     }
 }

@@ -36,12 +36,6 @@ namespace ImTools
         /// <summary>Identity function returning passed argument as result.</summary>
         public static T It<T>(T x) => x;
 
-        /// <summary>Always a true condition.</summary>
-        public static bool Always<T>(T _) => true;
-
-        /// <summary>Always a false condition.</summary>
-        public static bool Never<T>(T _) => false;
-
         /// <summary>Forward pipe operator to combine multiple actions.</summary>
         public static R Do<T, R>(this T x, Func<T, R> map) => map(x);
 
@@ -51,28 +45,33 @@ namespace ImTools
             effect(x);
             return x;
         }
+
+        /// Forms a pair from key and value, without mentioning their types. Helpful until a `ValueTuple` is everywhere.
+        public static KeyValuePair<K, V> Pair<K, V>(this K key, V value) => new KeyValuePair<K, V>(key, value);
     }
 
-    /// Void replacement actually usable as type argument and value, e.g. singleton empty record type, () in Haskell https://en.wikipedia.org/wiki/Unit_type
+    /// Replacement for `Void` type which can be used as a type argument and value.
+    /// In traditional functional languages this type is a singleton empty record type,
+    /// e.g. `()` in Haskell https://en.wikipedia.org/wiki/Unit_type
     public struct Unit
     {
-        /// Single value
+        /// Singleton unit
         public static readonly Unit unit = new Unit();
 
         /// <inheritdoc />
         public override string ToString() => "unit";
     }
 
-    /// Useful for type pattern matching via `case I&lt;T&gt;: ...`
-    public interface I<out T>
+    /// Useful for type pattern matching via `case U{T} x: ...`
+    public interface ICase<out T>
     {
-        T V { get; }
+        T Value { get; }
     }
 
     public static class Union
     {
         /// Less strange name for `.V.V` access to the nested case value
-        public static T Value<T>(this I<I<T>> i) => i.V.V;
+        public static T Value<T>(this ICase<ICase<T>> i) => i.Value.Value;
 
         internal static string ToString<TName, T>(T value)
         {
@@ -84,274 +83,271 @@ namespace ImTools
         }
     }
 
-    public abstract class Rec<TRec, T> : 
-        IEquatable<Rec<TRec, T>>, I<T>
+    public abstract class Rec<TRec, T> :
+        IEquatable<Rec<TRec, T>>, ICase<T>
         where TRec : Rec<TRec, T>, new()
     {
-        public static TRec Of(T v) => new TRec { V = v };
+        public static TRec Of(T v) => new TRec { Value = v };
 
-        public T V { get; private set; }
+        public T Value { get; private set; }
 
-        public bool Equals(Rec<TRec, T> other) => other != null && EqualityComparer<T>.Default.Equals(V, other.V);
+        public bool Equals(Rec<TRec, T> other) => other != null && EqualityComparer<T>.Default.Equals(Value, other.Value);
         public override bool Equals(object obj) => obj is Rec<TRec, T> c && Equals(c);
         // ReSharper disable once NonReadonlyMemberInGetHashCode
-        public override int GetHashCode() => EqualityComparer<T>.Default.GetHashCode(V);
-        public override string ToString() => Union.ToString<TRec, T>(V);
+        public override int GetHashCode() => EqualityComparer<T>.Default.GetHashCode(Value);
+        public override string ToString() => Union.ToString<TRec, T>(Value);
     }
 
-    /// Enables one line struct subtyping
+    /// Enables one line struct sub-typing
     public abstract class Case<TType, T>
     {
-        public static I Of(T x) => new I(x);
+        public static C Of(T x) => new C(x);
 
-        public struct I : IEquatable<I>
+        public struct C : IEquatable<C>
         {
-            public T V => _v;
-            public readonly T _v;
-            public I(T v) { _v = v; }
+            public T Value { get; }
+            public C(T v) { Value = v; }
 
-            public bool Equals(I other) => EqualityComparer<T>.Default.Equals(V, other.V);
-            public override bool Equals(object obj) => obj is I c && Equals(c);
-            public override int GetHashCode() => EqualityComparer<T>.Default.GetHashCode(V);
-            public override string ToString() => Union.ToString<TType, T>(V);
+            public bool Equals(C other) => EqualityComparer<T>.Default.Equals(Value, other.Value);
+            public override bool Equals(object obj) => obj is C c && Equals(c);
+            public override int GetHashCode() => EqualityComparer<T>.Default.GetHashCode(Value);
+            public override string ToString() => Union.ToString<TType, T>(Value);
         }
     }
 
-    public sealed class U<T1, T2> : Union<Unit, T1, T2> { }
+    public class U<T1, T2> : Union<Unit, T1, T2> { }
     public abstract class Union<TType, T1, T2>
     {
-        public interface I { R Map<R>(Func<T1, R> map1, Func<T2, R> map2); }
-
-        public static Case1 Of(T1 x) => new Case1(x);
-        public static Case2 Of(T2 x) => new Case2(x);
-
-        public struct Case1 : I, IEquatable<Case1>, I<T1>
+        public interface U
         {
-            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2) => map1(V);
-
-            public T1 V => _v;
-            public readonly T1 _v;
-            public Case1(T1 v) { _v = v; }
-
-            public bool Equals(Case1 other) => EqualityComparer<T1>.Default.Equals(V, other.V);
-            public override bool Equals(object obj) => obj is Case1 c1 && Equals(c1);
-            public override int GetHashCode() => EqualityComparer<T1>.Default.GetHashCode(V);
-            public override string ToString() => Union.ToString<TType, T1>(V);
+            R Map<R>(Func<T1, R> map1, Func<T2, R> map2);
         }
 
-        public struct Case2 : I, IEquatable<Case2>, I<T2>
+        public static U Of(T1 x) => new Case1(x);
+        public static U Of(T2 x) => new Case2(x);
+
+        public struct Case1 : U, IEquatable<Case1>, ICase<T1>
         {
-            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2) => map2(V);
+            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2) => map1(Value);
 
-            public T2 V => _v;
-            public readonly T2 _v;
-            public Case2(T2 v) { _v = v; }
+            public T1 Value { get; }
+            public Case1(T1 v) { Value = v; }
 
-            public bool Equals(Case2 other) => EqualityComparer<T2>.Default.Equals(V, other.V);
+            public bool Equals(Case1 other) => EqualityComparer<T1>.Default.Equals(Value, other.Value);
+            public override bool Equals(object obj) => obj is Case1 c1 && Equals(c1);
+            public override int GetHashCode() => EqualityComparer<T1>.Default.GetHashCode(Value);
+            public override string ToString() => Union.ToString<TType, T1>(Value);
+        }
+
+        public struct Case2 : U, IEquatable<Case2>, ICase<T2>
+        {
+            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2) => map2(Value);
+
+            public T2 Value { get; }
+            public Case2(T2 v) { Value = v; }
+
+            public bool Equals(Case2 other) => EqualityComparer<T2>.Default.Equals(Value, other.Value);
             public override bool Equals(object obj) => obj is Case2 c2 && Equals(c2);
-            public override int GetHashCode() => EqualityComparer<T2>.Default.GetHashCode(V);
-            public override string ToString() => Union.ToString<TType, T2>(V);
+            public override int GetHashCode() => EqualityComparer<T2>.Default.GetHashCode(Value);
+            public override string ToString() => Union.ToString<TType, T2>(Value);
         }
     }
 
-    public sealed class U<T1, T2, T3> : Union<Unit, T1, T2, T3> { }
+    public class U<T1, T2, T3> : Union<Unit, T1, T2, T3> { }
     public abstract class Union<TType, T1, T2, T3>
     {
-        public interface I { R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3); }
-
-        public static Case1 Of(T1 x) => new Case1(x);
-        public static Case2 Of(T2 x) => new Case2(x);
-        public static Case3 Of(T3 x) => new Case3(x);
-
-        public struct Case1 : I, IEquatable<Case1>, I<T1>
+        public interface U
         {
-            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3) => map1(V);
+            R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3);
+        }
 
-            public T1 V => _v;
-            public readonly T1 _v;
-            public Case1(T1 v) { _v = v; }
+        public static U Of(T1 x) => new Case1(x);
+        public static U Of(T2 x) => new Case2(x);
+        public static U Of(T3 x) => new Case3(x);
 
-            public bool Equals(Case1 other) => EqualityComparer<T1>.Default.Equals(V, other.V);
+        public struct Case1 : U, IEquatable<Case1>, ICase<T1>
+        {
+            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3) => map1(Value);
+
+            public T1 Value { get; }
+            public Case1(T1 v) { Value = v; }
+
+            public bool Equals(Case1 other) => EqualityComparer<T1>.Default.Equals(Value, other.Value);
             public override bool Equals(object obj) => obj is Case1 c && Equals(c);
-            public override int GetHashCode() => EqualityComparer<T1>.Default.GetHashCode(V);
-            public override string ToString() => Union.ToString<TType, T1>(V);
+            public override int GetHashCode() => EqualityComparer<T1>.Default.GetHashCode(Value);
+            public override string ToString() => Union.ToString<TType, T1>(Value);
         }
 
-        public struct Case2 : I, IEquatable<Case2>, I<T2>
+        public struct Case2 : U, IEquatable<Case2>, ICase<T2>
         {
-            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3) => map2(V);
+            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3) => map2(Value);
 
-            public T2 V => _v;
-            public readonly T2 _v;
-            public Case2(T2 v) { _v = v; }
+            public T2 Value { get; }
+            public Case2(T2 v) { Value = v; }
 
-            public bool Equals(Case2 other) => EqualityComparer<T2>.Default.Equals(V, other.V);
+            public bool Equals(Case2 other) => EqualityComparer<T2>.Default.Equals(Value, other.Value);
             public override bool Equals(object obj) => obj is Case2 c && Equals(c);
-            public override int GetHashCode() => EqualityComparer<T2>.Default.GetHashCode(V);
-            public override string ToString() => Union.ToString<TType, T2>(V);
+            public override int GetHashCode() => EqualityComparer<T2>.Default.GetHashCode(Value);
+            public override string ToString() => Union.ToString<TType, T2>(Value);
         }
 
-        public struct Case3 : I, IEquatable<Case3>, I<T3>
+        public struct Case3 : U, IEquatable<Case3>, ICase<T3>
         {
-            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3) => map3(V);
+            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3) => map3(Value);
 
-            public T3 V => _v;
-            public readonly T3 _v;
-            public Case3(T3 v) { _v = v; }
+            public T3 Value { get; }
+            public Case3(T3 v) { Value = v; }
 
-            public bool Equals(Case3 other) => EqualityComparer<T3>.Default.Equals(V, other.V);
+            public bool Equals(Case3 other) => EqualityComparer<T3>.Default.Equals(Value, other.Value);
             public override bool Equals(object obj) => obj is Case3 c && Equals(c);
-            public override int GetHashCode() => EqualityComparer<T3>.Default.GetHashCode(V);
-            public override string ToString() => Union.ToString<TType, T3>(V);
+            public override int GetHashCode() => EqualityComparer<T3>.Default.GetHashCode(Value);
+            public override string ToString() => Union.ToString<TType, T3>(Value);
         }
     }
 
-    public sealed class U<T1, T2, T3, T4> : Union<Unit, T1, T2, T3, T4> { }
+    public class U<T1, T2, T3, T4> : Union<Unit, T1, T2, T3, T4> { }
     public abstract class Union<TType, T1, T2, T3, T4>
     {
-        public interface I { R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3, Func<T4, R> map4); }
-
-        public static Case1 Of(T1 x) => new Case1(x);
-        public static Case2 Of(T2 x) => new Case2(x);
-        public static Case3 Of(T3 x) => new Case3(x);
-        public static Case4 Of(T4 x) => new Case4(x);
-
-        public struct Case1 : I, IEquatable<Case1>, I<T1>
+        public interface U
         {
-            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3, Func<T4, R> map4) => map1(V);
-            
-            public T1 V => _v;
-            public readonly T1 _v;
-            public Case1(T1 v) { _v = v; }
+            R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3, Func<T4, R> map4);
+        }
 
-            public bool Equals(Case1 other) => EqualityComparer<T1>.Default.Equals(V, other.V);
+        public static U Of(T1 x) => new Case1(x);
+        public static U Of(T2 x) => new Case2(x);
+        public static U Of(T3 x) => new Case3(x);
+        public static U Of(T4 x) => new Case4(x);
+
+        public struct Case1 : U, IEquatable<Case1>, ICase<T1>
+        {
+            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3, Func<T4, R> map4) => map1(Value);
+
+            public T1 Value { get; }
+            public Case1(T1 v) { Value = v; }
+
+            public bool Equals(Case1 other) => EqualityComparer<T1>.Default.Equals(Value, other.Value);
             public override bool Equals(object obj) => obj is Case1 c && Equals(c);
-            public override int GetHashCode() => EqualityComparer<T1>.Default.GetHashCode(V);
-            public override string ToString() => Union.ToString<TType, T1>(V);
+            public override int GetHashCode() => EqualityComparer<T1>.Default.GetHashCode(Value);
+            public override string ToString() => Union.ToString<TType, T1>(Value);
         }
 
-        public struct Case2 : I, IEquatable<Case2>, I<T2>
+        public struct Case2 : U, IEquatable<Case2>, ICase<T2>
         {
-            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3, Func<T4, R> map4) => map2(V);
+            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3, Func<T4, R> map4) => map2(Value);
 
-            public T2 V => _v;
-            public readonly T2 _v;
-            public Case2(T2 v) { _v = v; }
+            public T2 Value { get; }
+            public Case2(T2 v) { Value = v; }
 
-            public bool Equals(Case2 other) => EqualityComparer<T2>.Default.Equals(V, other.V);
+            public bool Equals(Case2 other) => EqualityComparer<T2>.Default.Equals(Value, other.Value);
             public override bool Equals(object obj) => obj is Case2 c && Equals(c);
-            public override int GetHashCode() => EqualityComparer<T2>.Default.GetHashCode(V);
-            public override string ToString() => Union.ToString<TType, T2>(V);
+            public override int GetHashCode() => EqualityComparer<T2>.Default.GetHashCode(Value);
+            public override string ToString() => Union.ToString<TType, T2>(Value);
         }
 
-        public struct Case3 : I, IEquatable<Case3>, I<T3>
+        public struct Case3 : U, IEquatable<Case3>, ICase<T3>
         {
-            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3, Func<T4, R> map4) => map3(V);
+            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3, Func<T4, R> map4) => map3(Value);
 
-            public T3 V => _v;
-            public readonly T3 _v;
-            public Case3(T3 v) { _v = v; }
+            public T3 Value { get; }
+            public Case3(T3 v) { Value = v; }
 
-            public bool Equals(Case3 other) => EqualityComparer<T3>.Default.Equals(V, other.V);
+            public bool Equals(Case3 other) => EqualityComparer<T3>.Default.Equals(Value, other.Value);
             public override bool Equals(object obj) => obj is Case3 c && Equals(c);
-            public override int GetHashCode() => EqualityComparer<T3>.Default.GetHashCode(V);
-            public override string ToString() => Union.ToString<TType, T3>(V);
+            public override int GetHashCode() => EqualityComparer<T3>.Default.GetHashCode(Value);
+            public override string ToString() => Union.ToString<TType, T3>(Value);
         }
 
-        public struct Case4 : I, IEquatable<Case4>, I<T4>
+        public struct Case4 : U, IEquatable<Case4>, ICase<T4>
         {
-            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3, Func<T4, R> map4) => map4(V);
+            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3, Func<T4, R> map4) => map4(Value);
 
-            public T4 V => _v;
-            public readonly T4 _v;
-            public Case4(T4 v) { _v = v; }
+            public T4 Value { get; }
+            public Case4(T4 v) { Value = v; }
 
-            public bool Equals(Case4 other) => EqualityComparer<T4>.Default.Equals(V, other.V);
+            public bool Equals(Case4 other) => EqualityComparer<T4>.Default.Equals(Value, other.Value);
             public override bool Equals(object obj) => obj is Case4 c && Equals(c);
-            public override int GetHashCode() => EqualityComparer<T4>.Default.GetHashCode(V);
-            public override string ToString() => Union.ToString<TType, T4>(V);
+            public override int GetHashCode() => EqualityComparer<T4>.Default.GetHashCode(Value);
+            public override string ToString() => Union.ToString<TType, T4>(Value);
         }
     }
 
-    public sealed class U<T1, T2, T3, T4, T5> : Union<Unit, T1, T2, T3, T4, T5> { }
+    public class U<T1, T2, T3, T4, T5> : Union<Unit, T1, T2, T3, T4, T5> { }
     public abstract class Union<TType, T1, T2, T3, T4, T5>
     {
-        public interface I { R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3, Func<T4, R> map4, Func<T5, R> map5); }
-
-        public static Case1 Of(T1 x) => new Case1(x);
-        public static Case2 Of(T2 x) => new Case2(x);
-        public static Case3 Of(T3 x) => new Case3(x);
-        public static Case4 Of(T4 x) => new Case4(x);
-        public static Case5 Of(T5 x) => new Case5(x);
-
-        public struct Case1 : I, IEquatable<Case1>, I<T1>
+        public interface ICase
         {
-            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3, Func<T4, R> map4, Func<T5, R> map5) => map1(V);
+            R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3, Func<T4, R> map4, Func<T5, R> map5);
+        }
 
-            public T1 V => _v;
-            public readonly T1 _v;
-            public Case1(T1 v) { _v = v; }
+        public static ICase Of(T1 x) => new Case1(x);
+        public static ICase Of(T2 x) => new Case2(x);
+        public static ICase Of(T3 x) => new Case3(x);
+        public static ICase Of(T4 x) => new Case4(x);
+        public static ICase Of(T5 x) => new Case5(x);
 
-            public bool Equals(Case1 other) => EqualityComparer<T1>.Default.Equals(V, other.V);
+        public struct Case1 : ICase, IEquatable<Case1>, ICase<T1>
+        {
+            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3, Func<T4, R> map4, Func<T5, R> map5) => map1(Value);
+
+            public T1 Value { get; }
+            public Case1(T1 v) { Value = v; }
+
+            public bool Equals(Case1 other) => EqualityComparer<T1>.Default.Equals(Value, other.Value);
             public override bool Equals(object obj) => obj is Case1 c && Equals(c);
-            public override int GetHashCode() => EqualityComparer<T1>.Default.GetHashCode(V);
-            public override string ToString() => Union.ToString<TType, T1>(V);
+            public override int GetHashCode() => EqualityComparer<T1>.Default.GetHashCode(Value);
+            public override string ToString() => Union.ToString<TType, T1>(Value);
         }
 
-        public struct Case2 : I, IEquatable<Case2>, I<T2>
+        public struct Case2 : ICase, IEquatable<Case2>, ICase<T2>
         {
-            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3, Func<T4, R> map4, Func<T5, R> map5) => map2(V);
+            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3, Func<T4, R> map4, Func<T5, R> map5) => map2(Value);
 
-            public T2 V => _v;
-            public readonly T2 _v;
-            public Case2(T2 v) { _v = v; }
+            public T2 Value { get; }
+            public Case2(T2 v) { Value = v; }
 
-            public bool Equals(Case2 other) => EqualityComparer<T2>.Default.Equals(V, other.V);
+            public bool Equals(Case2 other) => EqualityComparer<T2>.Default.Equals(Value, other.Value);
             public override bool Equals(object obj) => obj is Case2 c && Equals(c);
-            public override int GetHashCode() => EqualityComparer<T2>.Default.GetHashCode(V);
-            public override string ToString() => Union.ToString<TType, T2>(V);
+            public override int GetHashCode() => EqualityComparer<T2>.Default.GetHashCode(Value);
+            public override string ToString() => Union.ToString<TType, T2>(Value);
         }
 
-        public struct Case3 : I, IEquatable<Case3>, I<T3>
+        public struct Case3 : ICase, IEquatable<Case3>, ICase<T3>
         {
-            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3, Func<T4, R> map4, Func<T5, R> map5) => map3(V);
+            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3, Func<T4, R> map4, Func<T5, R> map5) => map3(Value);
 
-            public T3 V => _v;
-            public readonly T3 _v;
-            public Case3(T3 v) { _v = v; }
+            public T3 Value { get; }
+            public Case3(T3 v) { Value = v; }
 
-            public bool Equals(Case3 other) => EqualityComparer<T3>.Default.Equals(V, other.V);
+            public bool Equals(Case3 other) => EqualityComparer<T3>.Default.Equals(Value, other.Value);
             public override bool Equals(object obj) => obj is Case3 c && Equals(c);
-            public override int GetHashCode() => EqualityComparer<T3>.Default.GetHashCode(V);
-            public override string ToString() => Union.ToString<TType, T3>(V);
+            public override int GetHashCode() => EqualityComparer<T3>.Default.GetHashCode(Value);
+            public override string ToString() => Union.ToString<TType, T3>(Value);
         }
 
-        public struct Case4 : I, IEquatable<Case4>, I<T4>
+        public struct Case4 : ICase, IEquatable<Case4>, ICase<T4>
         {
-            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3, Func<T4, R> map4, Func<T5, R> map5) => map4(V);
+            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3, Func<T4, R> map4, Func<T5, R> map5) => map4(Value);
 
-            public T4 V => _v;
-            public readonly T4 _v;
-            public Case4(T4 v) { _v = v; }
+            public T4 Value { get; }
+            public Case4(T4 v) { Value = v; }
 
-            public bool Equals(Case4 other) => EqualityComparer<T4>.Default.Equals(V, other.V);
+            public bool Equals(Case4 other) => EqualityComparer<T4>.Default.Equals(Value, other.Value);
             public override bool Equals(object obj) => obj is Case4 c && Equals(c);
-            public override int GetHashCode() => EqualityComparer<T4>.Default.GetHashCode(V);
-            public override string ToString() => Union.ToString<TType, T4>(V);
+            public override int GetHashCode() => EqualityComparer<T4>.Default.GetHashCode(Value);
+            public override string ToString() => Union.ToString<TType, T4>(Value);
         }
 
-        public struct Case5 : I, IEquatable<Case5>, I<T5>
+        public struct Case5 : ICase, IEquatable<Case5>, ICase<T5>
         {
-            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3, Func<T4, R> map4, Func<T5, R> map5) => map5(V);
+            public R Map<R>(Func<T1, R> map1, Func<T2, R> map2, Func<T3, R> map3, Func<T4, R> map4, Func<T5, R> map5) => map5(Value);
 
-            public T5 V => _v;
-            public readonly T5 _v;
-            public Case5(T5 v) { _v = v; }
+            public T5 Value { get; }
+            public Case5(T5 v) { Value = v; }
 
-            public bool Equals(Case5 other) => EqualityComparer<T5>.Default.Equals(V, other.V);
+            public bool Equals(Case5 other) => EqualityComparer<T5>.Default.Equals(Value, other.Value);
             public override bool Equals(object obj) => obj is Case5 c && Equals(c);
-            public override int GetHashCode() => EqualityComparer<T5>.Default.GetHashCode(V);
-            public override string ToString() => Union.ToString<TType, T5>(V);
+            public override int GetHashCode() => EqualityComparer<T5>.Default.GetHashCode(Value);
+            public override string ToString() => Union.ToString<TType, T5>(Value);
         }
     }
 
@@ -705,30 +701,20 @@ namespace ImTools
         /// <typeparam name="T">Source item type</typeparam> <typeparam name="R">Result item type</typeparam>
         /// <param name="source">Source items</param> <param name="map">Function to convert item from source to result.</param>
         /// <returns>Converted items</returns>
-        public static IEnumerable<R> Map<T, R>(this IEnumerable<T> source, Func<T, R> map)
-        {
-            if (source == null)
-                return null;
-            var arr = source as T[];
-            if (arr != null)
-                return arr.Map(map);
-            return source.Select(map);
-        }
+        public static IEnumerable<R> Map<T, R>(this IEnumerable<T> source, Func<T, R> map) =>
+            source == null ? null
+            : source is T[] a ? a.Map(map)
+            : source.Select(map);
 
         /// <summary>If <paramref name="source"/> is array uses more effective Match for array, otherwise just calls Where</summary>
         /// <typeparam name="T">Type of source items.</typeparam>
         /// <param name="source">If null, the null will be returned.</param>
         /// <param name="condition">Condition to keep items.</param>
         /// <returns>Result items, may be an array.</returns>
-        public static IEnumerable<T> Match<T>(this IEnumerable<T> source, Func<T, bool> condition)
-        {
-            if (source == null)
-                return null;
-            var arr = source as T[];
-            if (arr != null)
-                return arr.Match(condition);
-            return source.Where(condition);
-        }
+        public static IEnumerable<T> Match<T>(this IEnumerable<T> source, Func<T, bool> condition) =>
+            source == null ? null
+            : source is T[] a ? a.Match(condition)
+            : source.Where(condition);
 
         /// <summary>If <paramref name="source"/> is array uses more effective Match for array,
         /// otherwise just calls Where, Select</summary>
@@ -736,15 +722,10 @@ namespace ImTools
         /// <param name="source">If null, the null will be returned.</param>
         /// <param name="condition">Condition to keep items.</param>  <param name="map">Converter from source to result item.</param>
         /// <returns>Result items, may be an array.</returns>
-        public static IEnumerable<R> Match<T, R>(this IEnumerable<T> source, Func<T, bool> condition, Func<T, R> map)
-        {
-            if (source == null)
-                return null;
-            var arr = source as T[];
-            if (arr != null)
-                return arr.Match(condition, map);
-            return source.Where(condition).Select(map);
-        }
+        public static IEnumerable<R> Match<T, R>(this IEnumerable<T> source, Func<T, bool> condition, Func<T, R> map) =>
+            source == null ? null
+            : source is T[] a ? a.Match(condition, map)
+            : source.Where(condition).Select(map);
     }
 
     /// <summary>Wrapper that provides optimistic-concurrency Swap operation implemented using <see cref="Ref.Swap{T}"/>.</summary>
@@ -882,32 +863,16 @@ namespace ImTools
     public static class KV
     {
         /// <summary>Creates the key value pair.</summary>
-        /// <typeparam name="K">Key type</typeparam> <typeparam name="V">Value type</typeparam>
-        /// <param name="key">Key</param> <param name="value">Value</param> <returns>New pair.</returns>
-        public static KV<K, V> Of<K, V>(K key, V value)
-        {
-            return new KV<K, V>(key, value);
-        }
+        public static KV<K, V> Of<K, V>(K key, V value) => new KV<K, V>(key, value);
 
         /// <summary>Creates the new pair with new key and old value.</summary>
-        /// <typeparam name="K">Key type</typeparam> <typeparam name="V">Value type</typeparam>
-        /// <param name="source">Source value</param> <param name="key">New key</param> <returns>New pair</returns>
-        public static KV<K, V> WithKey<K, V>(this KV<K, V> source, K key)
-        {
-            return new KV<K, V>(key, source.Value);
-        }
+        public static KV<K, V> WithKey<K, V>(this KV<K, V> source, K key) => new KV<K, V>(key, source.Value);
 
         /// <summary>Creates the new pair with old key and new value.</summary>
-        /// <typeparam name="K">Key type</typeparam> <typeparam name="V">Value type</typeparam>
-        /// <param name="source">Source value</param> <param name="value">New value.</param> <returns>New pair</returns>
-        public static KV<K, V> WithValue<K, V>(this KV<K, V> source, V value)
-        {
-            return new KV<K, V>(source.Key, value);
-        }
+        public static KV<K, V> WithValue<K, V>(this KV<K, V> source, V value) => new KV<K, V>(source.Key, value);
     }
 
     /// <summary>Immutable list - simplest linked list with Head and Rest.</summary>
-    /// <typeparam name="T">Type of the item.</typeparam>
     public sealed class ImList<T>
     {
         /// <summary>Empty list to Push to.</summary>
@@ -923,10 +888,9 @@ namespace ImTools
         public readonly ImList<T> Tail;
 
         /// <summary>Prepends new value and returns new list.</summary>
-        public ImList<T> Prepend(T head) => new ImList<T>(head, this);
+        public ImList<T> Push(T head) => new ImList<T>(head, this);
 
         /// <summary>Enumerates the list.</summary>
-        /// <returns>Each item in turn.</returns>
         public IEnumerable<T> Enumerate()
         {
             if (IsEmpty)
@@ -935,24 +899,13 @@ namespace ImTools
                 yield return list.Head;
         }
 
-        /// <summary>Sring representation for debugging purposes</summary>
-        public override string ToString()
-        {
-            if (IsEmpty)
-                return "[]";
-
-            var s = "[" + Head?.ToString();
-            if (!Tail.IsEmpty)
-                s += "," + Tail.Head?.ToString();
-            if (!Tail.Tail.IsEmpty)
-                s += "," + Tail.Tail.Head?.ToString();
-            if (!Tail.Tail.Tail.IsEmpty)
-                s += ",..";
-
-            return s + "]";
-        }
-
-        #region Implementation
+        /// <summary>String representation for debugging purposes</summary>
+        public override string ToString() => IsEmpty
+            ? "[]" : Tail.IsEmpty
+            ? "[" + Head + "]" : Tail.Tail.IsEmpty
+            ? "[" + Head + "," + Tail.Head + "]" : Tail.Tail.Tail.IsEmpty
+            ? "[" + Head + "," + Tail.Head + "," + Tail.Tail.Head + "]"
+            : "[" + Head + "," + Tail.Head + "," + Tail.Tail.Head + ", ...]";
 
         private ImList() { }
 
@@ -961,71 +914,266 @@ namespace ImTools
             Head = head;
             Tail = tail;
         }
-
-        #endregion
     }
 
     /// <summary>Extension methods providing basic operations on a list.</summary>
     public static class ImList
     {
-        /// <summary>Constructs list of one element</summary>
-        public static ImList<T> Cons<T>(this T head) => ImList<T>.Empty.Prepend(head);
-
-        /// <summary>Constructs list from head and tail</summary>
-        public static ImList<T> Cons<T>(this T head, ImList<T> tail) => tail.Prepend(head);
-
-        /// <summary>Constructs list of two elements</summary>
-        public static ImList<T> Cons<T>(this T head, T tail) => ImList<T>.Empty.Prepend(tail).Prepend(head);
-
-        /// <summary>Do some action on each element</summary>
-        public static void Apply<T>(this ImList<T> list, Action<T> action)
+        public static void Deconstruct<T>(this ImList<T> list, out T head, out ImList<T> tail, out bool isEmpty)
         {
-            for (; !list.IsEmpty; list = list.Tail)
-                action(list.Head);
+            head = list.Head;
+            tail = list.Tail;
+            isEmpty = list.IsEmpty;
         }
 
-        /// <summary>This a basically a Fold function, to address needs in Map, Filter, Reduce.</summary>
-        public static R Fold<T, R>(this ImList<T> list, R initialResult, Func<T, R, R> reduce)
+        /// <summary>Constructs list of items</summary>
+        public static ImList<T> List<T>(params T[] items)
+        {
+            var l = ImList<T>.Empty;
+            if (!items.IsNullOrEmpty())
+                for (var i = items.Length - 1; i >= 0; --i)
+                    l = l.Push(items[i]);
+            return l;
+        }
+
+        /// <summary>Constructs list of one element</summary>
+        public static ImList<T> Cons<T>(this T head) => ImList<T>.Empty.Push(head);
+
+        /// <summary>Constructs list from head and tail</summary>
+        public static ImList<T> Cons<T>(this T head, ImList<T> tail) => tail.Push(head);
+
+        /// <summary>Apples some effect action to each element</summary>
+        public static void ForEach<T>(this ImList<T> list, Action<T> effect)
+        {
+            for (; !list.IsEmpty; list = list.Tail)
+                effect(list.Head);
+        }
+
+        /// <summary>Fold list to a single value. The respective name for it in LINQ is Aggregate</summary>
+        public static R Fold<T, R>(this ImList<T> list, R seed, Func<T, R, R> reduce)
         {
             if (list.IsEmpty)
-                return initialResult;
-            var result = initialResult;
+                return seed;
+            var result = seed;
             for (; !list.IsEmpty; list = list.Tail)
                 result = reduce(list.Head, result);
             return result;
         }
 
-        /// <summary>Form of fold function with element index for convenience.</summary>
-        public static R Fold<T, R>(this ImList<T> list, R initialResult, Func<T, int, R, R> reduce)
+        /// <summary>Fold list to a single value with index of item. The respective name for it in LINQ is Aggregate.</summary>
+        public static R Fold<T, R>(this ImList<T> list, R seed, Func<T, int, R, R> reduce)
         {
             if (list.IsEmpty)
-                return initialResult;
-            var value = initialResult;
-            for (var i = 0; !list.IsEmpty; list = list.Tail)
-                value = reduce(list.Head, i++, value);
-            return value;
+                return seed;
+            var result = seed;
+            for (var i = 0; !list.IsEmpty; list = list.Tail, ++i)
+                result = reduce(list.Head, i, result);
+            return result;
         }
 
         /// <summary>Returns new list in reverse order.</summary>
         public static ImList<T> Reverse<T>(this ImList<T> list) =>
-            (list.IsEmpty || list.Tail.IsEmpty) ? list : list.Fold(ImList<T>.Empty, Cons);
+            list.IsEmpty || list.Tail.IsEmpty ? list : list.Fold(ImList<T>.Empty, Cons);
 
         /// <summary>Maps the items from the first list to the result list.</summary>
         public static ImList<R> Map<T, R>(this ImList<T> list, Func<T, R> map) =>
-            list.Fold(ImList<R>.Empty, (x, xs) => map(x).Cons(xs)).Reverse();
+            list.Fold(ImList<R>.Empty, (x, r) => map(x).Cons(r)).Reverse();
 
-        /// <summary>Maps the items from the first list to the result list with item index.</summary>
+        /// <summary>Maps with index</summary>
         public static ImList<R> Map<T, R>(this ImList<T> list, Func<T, int, R> map) =>
-            list.Fold(ImList<R>.Empty, (x, i, xs) => map(x, i).Cons(xs)).Reverse();
+            list.Fold(ImList<R>.Empty, (x, i, r) => map(x, i).Cons(r)).Reverse();
 
         /// <summary>Copies list to array.</summary>
-        public static T[] ToArray<T>(this ImList<T> source)
+        public static T[] ToArray<T>(this ImList<T> source) =>
+            source.IsEmpty ? ArrayTools.Empty<T>()
+            : source.Tail.IsEmpty ? new[] { source.Head } : source.Enumerate().ToArray();
+    }
+
+    /// Zipper is an immutable persistent data structure, to represent collection with single focused (selected, active) element.
+    /// Consist of REVERSED `Left` immutable list, `Focus` element, and `Right` immutable list. That's why a Zipper name,
+    /// where left and right part are joined in focus item.
+    public sealed class ImZipper<T>
+    {
+        /// Empty singleton instance to start building your zipper
+        public static readonly ImZipper<T> Empty = new ImZipper<T>();
+
+        /// True is zipper does not contain items
+        public bool IsEmpty => Count == 0;
+
+        /// Index of Focus item, from `0` to `Count-1`
+        public readonly int Index;
+
+        /// Number of items
+        public readonly int Count;
+
+        /// Left REVERSED list, so the Head of the list is just prior the Focus item 
+        public readonly ImList<T> Left;
+
+        /// Right list, where Head is just after the Focus item
+        public readonly ImList<T> Right;
+
+        /// Single focus item
+        public readonly T Focus;
+
+        public override string ToString() => 
+            IsEmpty ? "[||]" : Count + ":" + Left.Reverse() + "|" + Index + ":" + Focus + "|" + Right;
+
+        /// Sets a new focus and pushes the old focus to the Left list. 
+        public ImZipper<T> Append(T focus) => PushLeft(focus);
+
+        /// Sets a new focus and pushes the old focus to the Left list.
+        public ImZipper<T> PushLeft(T focus) =>
+        IsEmpty ? new ImZipper<T>(ImList<T>.Empty, focus, 0, ImList<T>.Empty, 1)
+                : new ImZipper<T>(Left.Push(Focus), focus, Index + 1, Right, Count + 1);
+
+        /// Sets a new focus and pushes the old focus to the right list. 
+        public ImZipper<T> Insert(T focus) => PushRight(focus);
+
+        /// Sets a new focus and pushes the old focus to the right list. 
+        public ImZipper<T> PushRight(T focus) =>
+            IsEmpty ? new ImZipper<T>(ImList<T>.Empty, focus, 0, ImList<T>.Empty, 1)
+                : new ImZipper<T>(Left, focus, Index, Right.Push(Focus), Count + 1);
+
+        /// Removes a focus, filling the hole with the item from the left list, or from the right if the left is empty
+        public ImZipper<T> PopLeft() =>
+            IsEmpty ? this
+            : Left.IsEmpty && Right.IsEmpty ? Empty
+            : !Left.IsEmpty ? new ImZipper<T>(Left.Tail, Left.Head, Index - 1, Right, Count - 1)
+            : new ImZipper<T>(Left, Right.Head, Index, Right.Tail, Count - 1);
+
+        /// Removes a focus, filling the hole with the item from the right list, or from the left if the right is empty
+        public ImZipper<T> PopRight() =>
+            IsEmpty ? this
+            : Left.IsEmpty && Right.IsEmpty ? Empty
+            : !Right.IsEmpty ? new ImZipper<T>(Left, Right.Head, Index, Right.Tail, Count - 1)
+            : new ImZipper<T>(Left.Tail, Left.Head, Index - 1, Right, Count - 1);
+
+        /// Shifts focus one element to the left (decrementing its Index).
+        public ImZipper<T> ShiftLeft() =>
+            IsEmpty || Left.IsEmpty ? this
+            : new ImZipper<T>(Left.Tail, Left.Head, Index - 1, Right.Push(Focus), Count);
+
+        /// Shifts focus one element to the right (incrementing its Index).
+        public ImZipper<T> ShiftRight() =>
+            IsEmpty || Right.IsEmpty ? this
+            : new ImZipper<T>(Left.Push(Focus), Right.Head, Index + 1, Right.Tail, Count);
+
+        /// Sets a new focus and returns a new zipper with the left and right lists unchanged
+        public ImZipper<T> WithFocus(T focus) =>
+            IsEmpty ? this : new ImZipper<T>(Left, focus, Index, Right, Count);
+
+        /// Maps over the zipper items producing a new zipper
+        public ImZipper<R> Map<R>(Func<T, R> map) =>
+            IsEmpty ? ImZipper<R>.Empty
+                : new ImZipper<R>(Left.Reverse().Fold(ImList<R>.Empty, (x, r) => r.Push(map(x))), 
+                    map(Focus), Index, Right.Map(map), Count);
+
+        /// Maps over the zipper items with item index, producing a new zipper
+        public ImZipper<R> Map<R>(Func<T, int, R> map) =>
+            IsEmpty ? ImZipper<R>.Empty
+                : new ImZipper<R>(
+                    Left.Reverse().Fold(ImList<R>.Empty, (x, i, r) => r.Push(map(x, i))), 
+                    map(Focus, Index), Index, Right.Map((x, i) => map(x, Index + 1 + i)), Count);
+
+        private ImZipper() { Index = -1; }
+
+        private ImZipper(ImList<T> left, T focus, int index, ImList<T> right, int count)
         {
-            if (source.IsEmpty)
+            Left = left;
+            Focus = focus;
+            Index = index;
+            Right = right;
+            Count = count;
+        }
+    }
+
+    /// Other ImZipper methods
+    public static class ImZipper
+    {
+        /// Appends array items to zipper
+        public static ImZipper<T> Zip<T>(params T[] items)
+        {
+            if (items.IsNullOrEmpty())
+                return ImZipper<T>.Empty;
+            var z = ImZipper<T>.Empty;
+            for (var i = 0; i < items.Length; ++i)
+                z = z.PushLeft(items[i]);
+            return z;
+        }
+
+        /// Converts to array.
+        public static T[] ToArray<T>(this ImZipper<T> z)
+        {
+            if (z.IsEmpty)
                 return ArrayTools.Empty<T>();
-            if (source.Tail.IsEmpty)
-                return new[] { source.Head };
-            return source.Enumerate().ToArray();
+            var a = new T[z.Count];
+            z.Fold(a, (x, i, xs) =>
+            {
+                xs[i] = x;
+                return xs;
+            });
+            return a;
+        }
+
+        /// Shifts focus to a specified index, e.g. a random access
+        public static ImZipper<T> ShiftTo<T>(this ImZipper<T> z, int i)
+        {
+            if (i < 0 || i >= z.Count || i == z.Index)
+                return z;
+            while (i < z.Index)
+                z = z.ShiftLeft();
+            while (i > z.Index)
+                z = z.ShiftRight();
+            return z;
+        }
+
+        /// Updates a focus element if it is present, otherwise does nothing.
+        /// If the focus item is the equal one, then returns the same zipper back.
+        public static ImZipper<T> Update<T>(this ImZipper<T> z, Func<T, T> update)
+        {
+            if (z.IsEmpty)
+                return z;
+            var result = update(z.Focus);
+            if (ReferenceEquals(z.Focus, result) || result != null && result.Equals(z.Focus))
+                return z;
+            return z.WithFocus(result);
+        }
+
+        /// Update the item at random index, by shifting and updating it
+        public static ImZipper<T> UpdateAt<T>(this ImZipper<T> z, int i, Func<T, T> update) =>
+            i < 0 || i >= z.Count ? z : z.ShiftTo(i).Update(update);
+
+        /// Update the item at random index, by shifting and updating it
+        public static ImZipper<T> RemoveAt<T>(this ImZipper<T> z, int i) =>
+            i < 0 || i >= z.Count ? z : z.ShiftTo(i).PopLeft();
+
+        /// Folds zipper to a single value
+        public static R Fold<T, R>(this ImZipper<T> z, R seed, Func<T, R, R> reduce) =>
+            z.IsEmpty ? seed :
+            z.Right.Fold(reduce(z.Focus, z.Left.Reverse().Fold(seed, reduce)), reduce);
+
+        /// Folds zipper to a single value by using an item index
+        public static R Fold<T, R>(this ImZipper<T> z, R seed, Func<T, int, R, R> reduce)
+        {
+            if (z.IsEmpty)
+                return seed;
+            var focusIndex = z.Index;
+            var reducedLeft = z.Left.Reverse().Fold(seed, reduce);
+            return z.Right.Fold(reduce(z.Focus, focusIndex, reducedLeft),
+                (x, i, r) => reduce(x, focusIndex + i + 1, r));
+        }
+
+        /// <summary>Apply some effect action on each element</summary>
+        public static void ForEach<T>(this ImZipper<T> z, Action<T> effect)
+        {
+            if (!z.IsEmpty)
+            {
+                if (!z.Left.IsEmpty)
+                    z.Left.Reverse().ForEach(effect);
+                effect(z.Focus);
+                if (!z.Right.IsEmpty)
+                    z.Right.ForEach(effect);
+            }
         }
     }
 
@@ -1062,27 +1210,20 @@ namespace ImTools
         /// <summary>Returns new tree with added or updated value for specified key.</summary>
         /// <param name="key"></param> <param name="value"></param>
         /// <returns>New tree.</returns>
-        public ImMap<V> AddOrUpdate(int key, V value)
-        {
-            return AddOrUpdateImpl(key, value);
-        }
+        public ImMap<V> AddOrUpdate(int key, V value) => AddOrUpdateImpl(key, value);
 
         /// <summary>Returns new tree with added or updated value for specified key.</summary>
         /// <param name="key">Key</param> <param name="value">Value</param>
         /// <param name="updateValue">(optional) Delegate to calculate new value from and old and a new value.</param>
         /// <returns>New tree.</returns>
-        public ImMap<V> AddOrUpdate(int key, V value, Update<V> updateValue)
-        {
-            return AddOrUpdateImpl(key, value, false, updateValue);
-        }
+        public ImMap<V> AddOrUpdate(int key, V value, Update<V> updateValue) =>
+            AddOrUpdateImpl(key, value, false, updateValue);
 
         /// <summary>Returns new tree with updated value for the key, Or the same tree if key was not found.</summary>
         /// <param name="key"></param> <param name="value"></param>
         /// <returns>New tree if key is found, or the same tree otherwise.</returns>
-        public ImMap<V> Update(int key, V value)
-        {
-            return AddOrUpdateImpl(key, value, true, null);
-        }
+        public ImMap<V> Update(int key, V value) =>
+            AddOrUpdateImpl(key, value, true, null);
 
         /// <summary>Get value for found key or null otherwise.</summary>
         /// <param name="key"></param> <param name="defaultValue">(optional) Value to return if key is not found.</param>
@@ -1147,10 +1288,7 @@ namespace ImTools
         /// Based on Eric Lippert http://blogs.msdn.com/b/ericlippert/archive/2008/01/21/immutability-in-c-part-nine-academic-plus-my-avl-tree-implementation.aspx </summary>
         /// <param name="key">Key to look for.</param> 
         /// <returns>New tree with removed or updated value.</returns>
-        public ImMap<V> Remove(int key)
-        {
-            return RemoveImpl(key);
-        }
+        public ImMap<V> Remove(int key) => RemoveImpl(key, false);
 
         #region Implementation
 
@@ -1183,32 +1321,28 @@ namespace ImTools
             Height = 1 + (left.Height > right.Height ? left.Height : right.Height);
         }
 
-        private ImMap<V> AddOrUpdateImpl(int key, V value)
-        {
-            return Height == 0  // add new node
-                ? new ImMap<V>(key, value)
-                : (key == Key // update found node
-                    ? new ImMap<V>(key, value, Left, Right)
-                    : (key < Key  // search for node
-                        ? (Height == 1
-                            ? new ImMap<V>(Key, Value, new ImMap<V>(key, value), Right, height: 2)
-                            : new ImMap<V>(Key, Value, Left.AddOrUpdateImpl(key, value), Right).KeepBalance())
-                        : (Height == 1
-                            ? new ImMap<V>(Key, Value, Left, new ImMap<V>(key, value), height: 2)
-                            : new ImMap<V>(Key, Value, Left, Right.AddOrUpdateImpl(key, value)).KeepBalance())));
-        }
+        private ImMap<V> AddOrUpdateImpl(int key, V value) =>
+            Height == 0  // add new node
+            ? new ImMap<V>(key, value)
+            : (key == Key // update found node
+                ? new ImMap<V>(key, value, Left, Right)
+                : (key < Key  // search for node
+                    ? (Height == 1
+                        ? new ImMap<V>(Key, Value, new ImMap<V>(key, value), Right, height: 2)
+                        : new ImMap<V>(Key, Value, Left.AddOrUpdateImpl(key, value), Right).KeepBalance())
+                    : (Height == 1
+                        ? new ImMap<V>(Key, Value, Left, new ImMap<V>(key, value), height: 2)
+                        : new ImMap<V>(Key, Value, Left, Right.AddOrUpdateImpl(key, value)).KeepBalance())));
 
-        private ImMap<V> AddOrUpdateImpl(int key, V value, bool updateOnly, Update<V> update)
-        {
-            return Height == 0 ? // tree is empty
-                (updateOnly ? this : new ImMap<V>(key, value))
-                : (key == Key ? // actual update
-                    new ImMap<V>(key, update == null ? value : update(Value, value), Left, Right)
-                    : (key < Key    // try update on left or right sub-tree
-                        ? new ImMap<V>(Key, Value, Left.AddOrUpdateImpl(key, value, updateOnly, update), Right)
-                        : new ImMap<V>(Key, Value, Left, Right.AddOrUpdateImpl(key, value, updateOnly, update)))
-                    .KeepBalance());
-        }
+        private ImMap<V> AddOrUpdateImpl(int key, V value, bool updateOnly, Update<V> update) =>
+            Height == 0 ? // tree is empty
+            (updateOnly ? this : new ImMap<V>(key, value))
+            : (key == Key ? // actual update
+                new ImMap<V>(key, update == null ? value : update(Value, value), Left, Right)
+                : (key < Key    // try update on left or right sub-tree
+                    ? new ImMap<V>(Key, Value, Left.AddOrUpdateImpl(key, value, updateOnly, update), Right)
+                    : new ImMap<V>(Key, Value, Left, Right.AddOrUpdateImpl(key, value, updateOnly, update)))
+                .KeepBalance());
 
         private ImMap<V> KeepBalance()
         {
@@ -1262,7 +1396,7 @@ namespace ImTools
             return this;
         }
 
-        private ImMap<V> RemoveImpl(int key, bool ignoreKey = false)
+        private ImMap<V> RemoveImpl(int key, bool ignoreKey)
         {
             if (Height == 0)
                 return this;
@@ -1287,9 +1421,9 @@ namespace ImTools
                 }
             }
             else if (key < Key)
-                result = new ImMap<V>(Key, Value, Left.RemoveImpl(key), Right);
+                result = new ImMap<V>(Key, Value, Left.RemoveImpl(key, false), Right);
             else
-                result = new ImMap<V>(Key, Value, Left, Right.RemoveImpl(key));
+                result = new ImMap<V>(Key, Value, Left, Right.RemoveImpl(key, false));
 
             return result.KeepBalance();
         }
@@ -1305,28 +1439,16 @@ namespace ImTools
         public static readonly ImHashMap<K, V> Empty = new ImHashMap<K, V>();
 
         /// <summary>Calculated key hash.</summary>
-        public int Hash
-        {
-            get { return _data.Hash; }
-        }
+        public int Hash => _data.Hash;
 
         /// <summary>Key of type K that should support <see cref="object.Equals(object)"/> and <see cref="object.GetHashCode"/>.</summary>
-        public K Key
-        {
-            get { return _data.Key; }
-        }
+        public K Key => _data.Key;
 
         /// <summary>Value of any type V.</summary>
-        public V Value
-        {
-            get { return _data.Value; }
-        }
+        public V Value => _data.Value;
 
         /// <summary>In case of <see cref="Hash"/> conflicts for different keys contains conflicted keys with their values.</summary>
-        public KV<K, V>[] Conflicts
-        {
-            get { return _data.Conflicts; }
-        }
+        public KV<K, V>[] Conflicts => _data.Conflicts;
 
         /// <summary>Left sub-tree/branch, or empty.</summary>
         public readonly ImHashMap<K, V> Left;
@@ -1338,19 +1460,14 @@ namespace ImTools
         public readonly int Height;
 
         /// <summary>Returns true if tree is empty.</summary>
-        public bool IsEmpty
-        {
-            get { return Height == 0; }
-        }
+        public bool IsEmpty => Height == 0;
 
         /// <summary>Returns new tree with added key-value. 
         /// If value with the same key is exist then the value is replaced.</summary>
         /// <param name="key">Key to add.</param><param name="value">Value to add.</param>
         /// <returns>New tree with added or updated key-value.</returns>
-        public ImHashMap<K, V> AddOrUpdate(K key, V value)
-        {
-            return AddOrUpdate(key.GetHashCode(), key, value);
-        }
+        public ImHashMap<K, V> AddOrUpdate(K key, V value) =>
+            AddOrUpdate(key.GetHashCode(), key, value);
 
         /// <summary>Returns new tree with added key-value. If value with the same key is exist, then
         /// if <paramref name="update"/> is not specified: then existing value will be replaced by <paramref name="value"/>;
@@ -1358,90 +1475,8 @@ namespace ImTools
         /// <param name="key">Key to add.</param><param name="value">Value to add.</param>
         /// <param name="update">Update handler.</param>
         /// <returns>New tree with added or updated key-value.</returns>
-        public ImHashMap<K, V> AddOrUpdate(K key, V value, Update<V> update)
-        {
-            return AddOrUpdate(key.GetHashCode(), key, value, update);
-        }
-
-        // todo: Non recursive version. Evaluate perf and if greater, then replace the recursive version.
-        internal ImHashMap<K, V> AddOrUpdateNonRecursive(K key, V value)
-        {
-            var hash = key.GetHashCode();
-            if (Height == 0)
-                return new ImHashMap<K, V>(new Data(hash, key, value));
-
-            // Go down to find node where to insert new key, collecting parents on the path
-            var t = this;
-            Path path = null;
-            while (t.Height != 0 && t.Hash != hash)
-            {
-                path = new Path(t, path);
-                t = hash < t.Hash ? t.Left : t.Right;
-            }
-
-            // Update: unwind the parents on the path adding updated node without re-balance!
-            if (t.Height != 0)
-            {
-                t = ReferenceEquals(key, t.Key) || key.Equals(t.Key)
-                    ? new ImHashMap<K, V>(new Data(hash, key, value, t.Conflicts), t.Left, t.Right)
-                    : t.UpdateValueAndResolveConflicts(key, value, null, false);
-
-                if (path == null) // updated node is the root
-                    return t;
-
-                while (path != null)
-                {
-                    var p = path.Node;
-                    t = t.Hash < p.Hash
-                        ? new ImHashMap<K, V>(p._data, t, p.Right)
-                        : new ImHashMap<K, V>(p._data, p.Left, t);
-
-                    path = path.Parent;
-                }
-
-                return t;
-            }
-
-            // Add new node: unwind the parents on the path and re-balance
-            {
-                // No need to rebalance immediate parent - so just add up the child
-                // ReSharper disable once PossibleNullReferenceException
-                var p = path.Node;
-                t = hash < p.Hash
-                    ? new ImHashMap<K, V>(p._data, new ImHashMap<K, V>(new Data(hash, key, value)), p.Right)
-                    : new ImHashMap<K, V>(p._data, p.Left, new ImHashMap<K, V>(new Data(hash, key, value)));
-
-                path = path.Parent;
-                if (path == null)
-                    return t;
-
-                while (path != null)
-                {
-                    p = path.Node; // next parent
-
-                    t = t.Hash < p.Hash
-                        ? new ImHashMap<K, V>(p._data, t, p.Right)
-                        : new ImHashMap<K, V>(p._data, p.Left, t);
-
-                    t = t.KeepBalance();
-                    path = path.Parent;
-                }
-
-                return t;
-            }
-        }
-
-        private sealed class Path
-        {
-            public readonly ImHashMap<K, V> Node;
-            public readonly Path Parent;
-
-            public Path(ImHashMap<K, V> node, Path parent)
-            {
-                Node = node;
-                Parent = parent;
-            }
-        }
+        public ImHashMap<K, V> AddOrUpdate(K key, V value, Update<V> update) =>
+            AddOrUpdate(key.GetHashCode(), key, value, update);
 
         /// <summary>Looks for <paramref name="key"/> and replaces its value with new <paramref name="value"/>, or 
         /// runs custom update handler (<paramref name="update"/>) with old and new value to get the updated result.</summary>
@@ -1450,10 +1485,8 @@ namespace ImTools
         /// <param name="update">(optional) Delegate for custom update logic, it gets old and new <paramref name="value"/>
         /// as inputs and should return updated value as output.</param>
         /// <returns>New tree with updated value or the SAME tree if no key found.</returns>
-        public ImHashMap<K, V> Update(K key, V value, Update<V> update = null)
-        {
-            return Update(key.GetHashCode(), key, value, update);
-        }
+        public ImHashMap<K, V> Update(K key, V value, Update<V> update = null) =>
+            Update(key.GetHashCode(), key, value, update);
 
         /// <summary>Looks for key in a tree and returns the key value if found, or <paramref name="defaultValue"/> otherwise.</summary>
         /// <param name="key">Key to look for.</param> <param name="defaultValue">(optional) Value to return if key is not found.</param>
@@ -1475,21 +1508,6 @@ namespace ImTools
         {
             var hash = key.GetHashCode();
 
-            var t = this;
-            while (t.Height != 0 && t._data.Hash != hash)
-                t = hash < t._data.Hash ? t.Left : t.Right;
-
-            if (t.Height != 0 && (ReferenceEquals(key, t._data.Key) || key.Equals(t._data.Key)))
-            {
-                value = t._data.Value;
-                return true;
-            }
-
-            return t.TryFindConflictedValue(key, out value);
-        }
-
-        internal bool TryFind(int hash, K key, out V value)
-        {
             var t = this;
             while (t.Height != 0 && t._data.Hash != hash)
                 t = hash < t._data.Hash ? t.Left : t.Right;
@@ -1540,10 +1558,7 @@ namespace ImTools
         /// Based on Eric Lippert http://blogs.msdn.com/b/ericlippert/archive/2008/01/21/immutability-in-c-part-nine-academic-plus-my-avl-tree-implementation.aspx </summary>
         /// <param name="key">Key to look for.</param> 
         /// <returns>New tree with removed or updated value.</returns>
-        public ImHashMap<K, V> Remove(K key)
-        {
-            return Remove(key.GetHashCode(), key);
-        }
+        public ImHashMap<K, V> Remove(K key) => Remove(key.GetHashCode(), key);
 
         #region Implementation
 
@@ -1594,53 +1609,47 @@ namespace ImTools
             Height = height;
         }
 
-        internal ImHashMap<K, V> AddOrUpdate(int hash, K key, V value)
-        {
-            return Height == 0  // add new node
-                ? new ImHashMap<K, V>(new Data(hash, key, value))
-                : (hash == Hash // update found node
-                    ? (ReferenceEquals(Key, key) || Key.Equals(key)
-                        ? new ImHashMap<K, V>(new Data(hash, key, value, Conflicts), Left, Right)
-                        : UpdateValueAndResolveConflicts(key, value, null, false))
-                    : (hash < Hash  // search for node
-                        ? (Height == 1
-                            ? new ImHashMap<K, V>(_data,
-                                new ImHashMap<K, V>(new Data(hash, key, value)), Right, height: 2)
-                            : new ImHashMap<K, V>(_data,
-                                Left.AddOrUpdate(hash, key, value), Right).KeepBalance())
-                        : (Height == 1
-                            ? new ImHashMap<K, V>(_data,
-                                Left, new ImHashMap<K, V>(new Data(hash, key, value)), height: 2)
-                            : new ImHashMap<K, V>(_data,
-                                Left, Right.AddOrUpdate(hash, key, value)).KeepBalance())));
-        }
+        internal ImHashMap<K, V> AddOrUpdate(int hash, K key, V value) =>
+            Height == 0  // add new node
+            ? new ImHashMap<K, V>(new Data(hash, key, value))
+            : (hash == Hash // update found node
+                ? (ReferenceEquals(Key, key) || Key.Equals(key)
+                    ? new ImHashMap<K, V>(new Data(hash, key, value, Conflicts), Left, Right)
+                    : UpdateValueAndResolveConflicts(key, value, null, false))
+                : (hash < Hash  // search for node
+                    ? (Height == 1
+                        ? new ImHashMap<K, V>(_data,
+                            new ImHashMap<K, V>(new Data(hash, key, value)), Right, height: 2)
+                        : new ImHashMap<K, V>(_data,
+                            Left.AddOrUpdate(hash, key, value), Right).KeepBalance())
+                    : (Height == 1
+                        ? new ImHashMap<K, V>(_data,
+                            Left, new ImHashMap<K, V>(new Data(hash, key, value)), height: 2)
+                        : new ImHashMap<K, V>(_data,
+                            Left, Right.AddOrUpdate(hash, key, value)).KeepBalance())));
 
-        private ImHashMap<K, V> AddOrUpdate(int hash, K key, V value, Update<V> update)
-        {
-            return Height == 0
-                ? new ImHashMap<K, V>(new Data(hash, key, value))
-                : (hash == Hash // update
-                    ? (ReferenceEquals(Key, key) || Key.Equals(key)
-                        ? new ImHashMap<K, V>(new Data(hash, key, update(Value, value), Conflicts), Left, Right)
-                        : UpdateValueAndResolveConflicts(key, value, update, false))
-                    : (hash < Hash
-                        ? With(Left.AddOrUpdate(hash, key, value, update), Right)
-                        : With(Left, Right.AddOrUpdate(hash, key, value, update)))
-                    .KeepBalance());
-        }
+        private ImHashMap<K, V> AddOrUpdate(int hash, K key, V value, Update<V> update) =>
+            Height == 0
+            ? new ImHashMap<K, V>(new Data(hash, key, value))
+            : (hash == Hash // update
+                ? (ReferenceEquals(Key, key) || Key.Equals(key)
+                    ? new ImHashMap<K, V>(new Data(hash, key, update(Value, value), Conflicts), Left, Right)
+                    : UpdateValueAndResolveConflicts(key, value, update, false))
+                : (hash < Hash
+                    ? With(Left.AddOrUpdate(hash, key, value, update), Right)
+                    : With(Left, Right.AddOrUpdate(hash, key, value, update)))
+                .KeepBalance());
 
-        internal ImHashMap<K, V> Update(int hash, K key, V value, Update<V> update)
-        {
-            return Height == 0 ? this
-                : (hash == Hash
-                    ? (ReferenceEquals(Key, key) || Key.Equals(key)
-                        ? new ImHashMap<K, V>(new Data(hash, key, update == null ? value : update(Value, value), Conflicts), Left, Right)
-                        : UpdateValueAndResolveConflicts(key, value, update, true))
-                    : (hash < Hash
-                        ? With(Left.Update(hash, key, value, update), Right)
-                        : With(Left, Right.Update(hash, key, value, update)))
-                    .KeepBalance());
-        }
+        internal ImHashMap<K, V> Update(int hash, K key, V value, Update<V> update) =>
+            Height == 0 ? this
+            : (hash == Hash
+                ? (ReferenceEquals(Key, key) || Key.Equals(key)
+                    ? new ImHashMap<K, V>(new Data(hash, key, update == null ? value : update(Value, value), Conflicts), Left, Right)
+                    : UpdateValueAndResolveConflicts(key, value, update, true))
+                : (hash < Hash
+                    ? With(Left.Update(hash, key, value, update), Right)
+                    : With(Left, Right.Update(hash, key, value, update)))
+                .KeepBalance());
 
         private ImHashMap<K, V> UpdateValueAndResolveConflicts(K key, V value, Update<V> update, bool updateOnly)
         {
@@ -1740,10 +1749,8 @@ namespace ImTools
             return this;
         }
 
-        private ImHashMap<K, V> With(ImHashMap<K, V> left, ImHashMap<K, V> right)
-        {
-            return left == Left && right == Right ? this : new ImHashMap<K, V>(_data, left, right);
-        }
+        private ImHashMap<K, V> With(ImHashMap<K, V> left, ImHashMap<K, V> right) =>
+            left == Left && right == Right ? this : new ImHashMap<K, V>(_data, left, right);
 
         internal ImHashMap<K, V> Remove(int hash, K key, bool ignoreKey = false)
         {
@@ -1816,263 +1823,5 @@ namespace ImTools
         }
 
         #endregion
-    }
-
-    /// <summary>The concurrent HashTable.</summary>
-    /// <typeparam name="K">Type of the key</typeparam> <typeparam name="V">Type of the value</typeparam>
-    /// <typeparam name="TEqualityComparer">Better be a struct to enable `Equals` and `GetHashCode` inlining.</typeparam>
-    public class HashMap<K, V, TEqualityComparer> where TEqualityComparer : IEqualityComparer<K>, new()
-    {
-        internal struct Slot
-        {
-            public int Hash; // 0 - means slot is not occupied, ~1 means soft-removed item 
-            public K Key;
-            public V Value;
-        }
-
-        // ReSharper disable once FieldCanBeMadeReadOnly.Local
-        // No readonly because otherwise the struct will be copied on every call.
-        private TEqualityComparer _equalityComparer;
-
-        private const int HashOfRemoved = ~1;
-
-        private Slot[] _slots;
-        private Slot[] _newSlots; // the transition slots, that suppose to replace the slots
-
-        private int _count;
-
-        /// <summary>Initial size of underlying storage, prevents the unnecessary storage re-sizing and items migrations.</summary>
-        public const int InitialCapacityBitCount = 5; // aka 32
-
-        /// <summary>Amount of store items. 0 for empty map.</summary>
-        public int Count { get { return _count; } }
-
-        /// <summary>Constructor. Allows to set the <see cref="InitialCapacityBitCount"/>.</summary>
-        /// <param name="initialCapacityBitCount">Initial underlying buckets size.</param>
-        public HashMap(int initialCapacityBitCount = InitialCapacityBitCount)
-        {
-            _slots = new Slot[1 << initialCapacityBitCount];
-            _equalityComparer = new TEqualityComparer();
-        }
-
-        /// <summary>Looks for key in a tree and returns the value if found.</summary>
-        /// <param name="key">Key to look for.</param> <param name="value">The found value</param>
-        /// <returns>True if contains key.</returns>
-        public bool TryFind(K key, out V value)
-        {
-            var hash = _equalityComparer.GetHashCode(key) | 1; // | 1 is to distinguish from 0 - which plays role of empty slot marker
-
-            var slots = _slots;
-            var bits = slots.Length - 1;
-            var slot = slots[hash & bits];
-            if (slot.Hash == hash && _equalityComparer.Equals(slot.Key, key))
-            {
-                value = slot.Value;
-                return true;
-            }
-
-            var step = 1;
-            while (slot.Hash != 0 && step < bits)
-            {
-                slot = slots[(hash + step++) & bits];
-                if (slot.Hash == hash && _equalityComparer.Equals(slot.Key, key))
-                {
-                    value = slot.Value;
-                    return true;
-                }
-            }
-
-            value = default(V);
-            return false;
-        }
-
-        /// <summary>Looks for key in a tree and returns the key value if found, or <paramref name="defaultValue"/> otherwise.</summary>
-        /// <param name="key">Key to look for.</param> <param name="defaultValue">(optional) Value to return if key is not found.</param>
-        /// <returns>Found value or <paramref name="defaultValue"/>.</returns>
-        public V GetValueOrDefault(K key, V defaultValue = default(V))
-        {
-            V value;
-            return TryFind(key, out value) ? value : defaultValue;
-        }
-
-        /// <summary>Returns new tree with added key-value. 
-        /// If value with the same key is exist then the value is replaced.</summary>
-        /// <param name="key">Key to add.</param><param name="value">Value to add.</param>
-        public void AddOrUpdate(K key, V value)
-        {
-            var hash = _equalityComparer.GetHashCode(key) | 1; // | 1 is to distinguish from 0 - which plays role of empty slot marker
-
-            while (true)
-            {
-                var slots = _newSlots ?? _slots;
-                var slotCount = slots.Length;
-                var bits = slotCount - 1;
-
-                // search for the next empty item slot
-                for (var step = 0; step < bits; ++step)
-                {
-                    var index = (hash + step) & bits;
-
-                    // fills only an empty slot, not the removed slot
-                    if (Interlocked.CompareExchange(ref slots[index].Hash, hash, 0) == 0)
-                    {
-                        slots[index].Key = key;
-                        slots[index].Value = value;
-
-                        // ensure that we operate on the same slots: either re-populating or the stable one
-                        if (slots != _newSlots && slots != _slots)
-                            continue;
-
-                        Interlocked.Increment(ref _count);
-                        return;
-                    }
-
-                    // update:
-                    if (slots[index].Hash == hash && _equalityComparer.Equals(slots[index].Key, key))
-                    {
-                        slots[index].Value = value;
-
-                        // ensure that we operate on the same slots: either re-populating or the stable one
-                        if (slots != _newSlots && slots != _slots)
-                            continue;
-
-                        // no count incremental here
-                        return;
-                    }
-                }
-
-                // Re-try whole operation if other thread re-populated slots in between and changed the reference
-                // Otherwise (if we are on the same slots) re-populate.
-                var newSlots = new Slot[slotCount << 1];
-                if (Interlocked.CompareExchange(ref _newSlots, newSlots, null) != null)
-                    continue;
-
-                Repopulate(newSlots, slots, hash, key, value);
-
-                if (Interlocked.CompareExchange(ref _slots, newSlots, slots) == slots)
-                {
-                    Interlocked.Exchange(ref _newSlots, null);
-                    Interlocked.Increment(ref _count);
-                    return;
-                }
-            }
-        }
-
-        /// <summary>Removes the value with passed key. 
-        /// Actually it is a SOFT REMOVE which marks slot with found key as removed, without compacting the underlying array.</summary>
-        /// <param name="key"></param><returns>The true if key was found, false otherwise.</returns>
-        public bool Remove(K key)
-        {
-            var hash = _equalityComparer.GetHashCode(key) | 1; // | 1 is to distinguish from 0 - which plays role of empty slot marker
-
-            var slots = _slots;
-            var bits = slots.Length - 1;
-
-            // search until the empty slot
-            for (var i = 0; i < bits; ++i)
-            {
-                var index = (hash + i) & bits;
-                var slot = slots[index];
-                if (slot.Hash == HashOfRemoved)
-                    continue; // prune the table
-
-                if (slot.Hash == hash && key.Equals(slot.Key))
-                {
-                    // mark as removed
-                    if (Interlocked.CompareExchange(ref slots[index].Hash, HashOfRemoved, hash) == hash)
-                        Interlocked.Decrement(ref _count);
-                    return true;
-                }
-
-                if (slot.Hash == 0)
-                    break; // finish search on empty slot But not on removed slot
-            }
-
-            return false;
-        }
-
-        private static void Repopulate(Slot[] newSlots, Slot[] slots, int hash, K key, V value)
-        {
-            var newBits = newSlots.Length - 1;
-            for (var step = 0; step < newBits; ++step)
-            {
-                var index = (hash + step) & newBits;
-                if (Interlocked.CompareExchange(ref newSlots[index].Hash, hash, 0) == 0)
-                {
-                    newSlots[index].Key = key;
-                    newSlots[index].Value = value;
-                    break;
-                }
-            }
-
-            for (var i = 0; i < slots.Length; i++)
-            {
-                var slot = slots[i];
-                if (slot.Hash == HashOfRemoved)
-                    continue; // prune the slots from the removed items
-
-                for (var step = 0; step < newBits; ++step)
-                {
-                    hash = slot.Hash;
-                    var index = (hash + step) & newBits;
-                    if (Interlocked.CompareExchange(ref newSlots[index].Hash, hash, 0) == 0)
-                    {
-                        newSlots[index].Key = slot.Key;
-                        newSlots[index].Value = slot.Value;
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    /// <summary>Custom comparer for int values for max performance. 
-    /// Defined as `struct` so the methods can be in-lined.</summary>
-    public struct IntEqualityComparer : IEqualityComparer<int>
-    {
-        /// <inheritdoc />
-        public bool Equals(int x, int y)
-        {
-            return x == y;
-        }
-
-        /// <inheritdoc />
-        public int GetHashCode(int obj)
-        {
-            return obj;
-        }
-    }
-
-    /// <summary>Sugar for easy defining of map with int Key. Uses <see cref="IntEqualityComparer"/>.</summary>
-    /// <typeparam name="V">Type of value.</typeparam>
-    public class IntHashMap<V> : HashMap<int, V, IntEqualityComparer>
-    {
-        /// <inheritdoc />
-        public IntHashMap(int initialCapacityBitCount = InitialCapacityBitCount) : base(initialCapacityBitCount) { }
-    }
-
-    /// <summary>Custom comparer for Type values for max performance. 
-    /// Defined as `struct` so the methods can be in-lined.</summary>
-    public struct TypeEqualityComparer : IEqualityComparer<Type>
-    {
-        /// <inheritdoc />
-        public bool Equals(Type x, Type y)
-        {
-            return ReferenceEquals(x, y);
-        }
-
-        /// <inheritdoc />
-        public int GetHashCode(Type obj)
-        {
-            return obj.GetHashCode();
-        }
-    }
-
-    /// <summary>Sugar for easy defining of map with int Key. Uses <see cref="IntEqualityComparer"/>.</summary>
-    /// <typeparam name="V">Type of value.</typeparam>
-    public class TypeHashMap<V> : HashMap<Type, V, TypeEqualityComparer>
-    {
-        /// <inheritdoc />
-        public TypeHashMap(int initialCapacityBitCount = InitialCapacityBitCount) : base(initialCapacityBitCount) { }
     }
 }

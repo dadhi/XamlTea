@@ -1,11 +1,11 @@
-﻿// ReSharper disable InconsistentNaming
+// ReSharper disable InconsistentNaming
+
 #pragma warning disable 659
 
 namespace Tea
 {
     using System;
     using ImTools;
-    using static ImToolsExt;
 
     public struct MessageRef<M>
     {
@@ -15,11 +15,13 @@ namespace Tea
 
     public static class Message
     {
-        public static void Empty<M>(M _) { }
-        
-        public static MessageRef<M> Ref<M>(Action<M> send) => 
+        public static void Empty<M>(M _)
+        {
+        }
+
+        public static MessageRef<M> Ref<M>(Action<M> send) =>
             new MessageRef<M>(ImTools.Ref.Of(ImTools.Ref.Of(send)));
-        
+
         public static MessageRef<M> EmptyRef<M>() => Ref<M>(Empty);
 
         public static void Set<M>(this MessageRef<M> x, Action<M> send) => x.Ref.Value.Swap(send);
@@ -85,17 +87,17 @@ namespace Tea
     //            other = other.Fold(ImList<Style>.Empty, (otherStyle, otherDiff) =>
     //            {
     //                if (otherStyle.GetType() != sourceStyle.GetType())
-    //                    return otherDiff.Prepend(otherStyle);
+    //                    return otherDiff.Push(otherStyle);
 
     //                s2 = otherStyle;
     //                return otherDiff;
     //            });
 
     //            if (s2 == null)
-    //                return sourceDiff.Prepend((sourceStyle, default(Style)));
+    //                return sourceDiff.Push((sourceStyle, default(Style)));
 
     //            if (s2 != null && sourceStyle != s2 && !s2.Equals(sourceStyle))
-    //                return sourceDiff.Prepend((sourceStyle, s2));
+    //                return sourceDiff.Push((sourceStyle, s2));
 
     //            return sourceDiff;
     //        });
@@ -103,34 +105,38 @@ namespace Tea
     //        if (other.IsEmpty)
     //            return resultDiff;
 
-    //        return other.Fold(resultDiff, (style, diff) => diff.Prepend((default(Style), style)));
+    //        return other.Fold(resultDiff, (style, diff) => diff.Push((default(Style), style)));
     //    }
     //}
 
-    public enum Layout { Horizontal, Vertical }
+    public enum Layout
+    {
+        Horizontal,
+        Vertical
+    }
 
     /// UI elements
-    public sealed class UI : Union<UI, Text, Input, Button, Check, Panel> { }
-    public sealed class Text   : Rec<Text, string> { }
-    public sealed class Input  : Rec<Input, (string Content, MessageRef<string> Changed)> { }
-    public sealed class Button : Rec<Button, (string Label, MessageRef<Unit> Clicked)> { }
-    public sealed class Check  : Rec<Check, (string Label, bool IsChecked, MessageRef<bool> Changed)> { }
-    public sealed class Panel  : Rec<Panel, (Layout Layout, ImList<UI.I> Elements)> { }
+    public sealed class UI : U<Text, Input, Button, Check, Panel> {}
+    public sealed class Text : Rec<Text, string> {}
+    public sealed class Input : Rec<Input, (string Content, MessageRef<string> Changed)> {}
+    public sealed class Button : Rec<Button, (string Label, MessageRef<Unit> Clicked)> {}
+    public sealed class Check : Rec<Check, (string Label, bool IsChecked, MessageRef<bool> Changed)> {}
+    public sealed class Panel : Rec<Panel, (Layout Layout, ImZipper<UI.ICase> Elements)> {}
 
-    /// UI component update and event redirection.
-    public sealed class Patch : Union<Patch, Insert, Update, Replace, Remove, Event> { }
-    public sealed class Insert  : Rec<Insert, (ImList<int> Path, UI.I UI)> { }
-    public sealed class Update  : Rec<Update, (ImList<int> Path, UI.I UI)> { }
-    public sealed class Replace : Rec<Replace, (ImList<int> Path, UI.I UI)> { }
-    public sealed class Remove  : Rec<Remove, ImList<int>> { }
-    public sealed class Event   : Rec<Event, Action> { }
+    /// UI patching commands
+    public sealed class Patch : U<Insert, Update, Replace, Remove, Event> {}
+    public sealed class Insert : Rec<Insert, (ImList<int> Path, UI.ICase UI)> {}
+    public sealed class Update : Rec<Update, (ImList<int> Path, UI.ICase UI)> {}
+    public sealed class Replace : Rec<Replace, (ImList<int> Path, UI.ICase UI)> {}
+    public sealed class Remove : Rec<Remove, ImList<int>> {}
+    public sealed class Event : Rec<Event, Action> {}
 
     /// UI with message M.
     public class UI<M>
     {
-        public readonly UI.I Element;
+        public readonly UI.ICase Element;
         public Action<M> Send;
-        public UI(UI.I element, Action<M> send) => (Element, Send) = (element, send);
+        public UI(UI.ICase element, Action<M> send = null) => (Element, Send) = (element, send ?? Message.Empty);
     }
 
     /// Base interface for component with Update, View but without Commands, Subscriptions.
@@ -142,7 +148,9 @@ namespace Tea
 
     /// Marker interface for boilerplate removal.
     // ReSharper disable once UnusedTypeParameter
-    public interface IMessage<T> { }
+    public interface IMessage<T>
+    {
+    }
 
     public struct ChildChanged<TChild, TParent> : IMessage<TParent>
     {
@@ -153,12 +161,13 @@ namespace Tea
 
     public static class Component
     {
-        public static UI<IMessage<TParent>> In<TChild, TParent>(this TChild child, int childIndex)
+        public static UI<IMessage<TParent>> View<TChild, TParent>(this TChild child, int childIndex)
             where TChild : IComponent<TChild>
             where TParent : IComponent<TParent> =>
             child.View().Map(m => m.Lift<TChild, TParent>(childIndex));
 
-        public static UI<IMessage<TParent>> In<TChild, TParent>(this TChild child, TParent _onlyForInference, int childIndex = 0)
+        public static UI<IMessage<TParent>> View<TChild, TParent>(this TChild child, TParent _onlyForInference,
+            int childIndex = 0)
             where TChild : IComponent<TChild> =>
             child.View().Map(m => m.Lift<TChild, TParent>(childIndex));
 
@@ -168,28 +177,25 @@ namespace Tea
 
     public interface INativeUI
     {
-        void ApplyPatches(ImList<Patch.I> patches);
+        void ApplyPatches(ImList<Patch.ICase> patches);
     }
 
     public static class UIElements
     {
-        public static UI<M> text<M>(string text) =>
-            new UI<M>(UI.Of(Text.Of(text)), Message.Empty);
+        public static UI<M> text<M>(string text) => new UI<M>(UI.Of(Text.Of(text)));
 
         public static UI<M> text<M>(object textObj) => text<M>("" + textObj);
 
         public static UI<M> input<M>(string text, Func<string, M> onChange)
         {
             var m = Message.EmptyRef<string>();
-            return new UI<M>(UI.Of(Input.Of((text, m))), Message.Empty)
-                .Do(x => m.Set(s => x.Send(onChange(s))));
+            return new UI<M>(UI.Of(Input.Of((text, m)))).Do(x => m.Set(s => x.Send(onChange(s))));
         }
 
         public static UI<M> button<M>(string label, Func<M> onClick)
         {
             var m = Message.EmptyRef<Unit>();
-            return new UI<M>(UI.Of(Button.Of((label, m))), Message.Empty)
-                .Do(x => m.Set(_ => x.Send(onClick())));
+            return new UI<M>(UI.Of(Button.Of((label, m)))).Do(x => m.Set(_ => x.Send(onClick())));
         }
 
         public static UI<M> button<M>(string label, M onClickMessage) =>
@@ -198,25 +204,24 @@ namespace Tea
         public static UI<M> check<M>(string label, bool isChecked, Func<bool, M> onCheck)
         {
             var m = Message.EmptyRef<bool>();
-            return new UI<M>(UI.Of(Check.Of((label, isChecked, m))), Message.Empty)
-                .Do(x => m.Set(b => x.Send(onCheck(b))));
+            return new UI<M>(UI.Of(Check.Of((label, isChecked, m)))).Do(x => m.Set(b => x.Send(onCheck(b))));
         }
 
-        public static UI<M> panel<M>(Layout layout, ImList<UI<M>> elements)
+        public static UI<M> panel<M>(Layout layout, ImZipper<UI<M>> elements)
         {
             var ui = new UI<M>(UI.Of(Panel.Of((layout, elements.Map(x => x.Element)))), Message.Empty);
             void Send(M m) => ui.Send(m);
-            elements.Apply(x => x.Send = Send);
+            elements.Map(x => x.Send = Send);
             return ui;
         }
 
-        public static UI<M> row<M>(ImList<UI<M>> uis) => panel(Layout.Horizontal, uis);
+        public static UI<M> row<M>(ImZipper<UI<M>> elems) => panel(Layout.Horizontal, elems);
 
-        public static UI<M> row<M>(params UI<M>[] kids) => row(list(kids));
+        public static UI<M> row<M>(params UI<M>[] elems) => row(ImZipper.Zip(elems));
 
-        public static UI<M> column<M>(ImList<UI<M>> kids) => panel(Layout.Vertical, kids);
+        public static UI<M> column<M>(ImZipper<UI<M>> elems) => panel(Layout.Vertical, elems);
 
-        public static UI<M> column<M>(params UI<M>[] kids) => column(list(kids));
+        public static UI<M> column<M>(params UI<M>[] elems) => column(ImZipper.Zip(elems));
     }
 
     public static class UIApplication
@@ -224,7 +229,7 @@ namespace Tea
         /// Returns a new UI component mapping the message using the given function.
         public static UI<B> Map<A, B>(this UI<A> source, Func<A, B> map)
         {
-            var target = new UI<B>(source.Element, Message.Empty);
+            var target = new UI<B>(source.Element);
             void Send(A a) => target.Send(map(a));
             source.Send = Send;
             return target;
@@ -232,70 +237,73 @@ namespace Tea
 
         /// Returns a list of UI updates from two UI components.
         /// To ensure correct insert and removal sequence where the insert/remove index are existing.
-        public static ImList<Patch.I> Diff<M1, M2>(this UI<M1> a, UI<M2> b) =>
-            Diff(ImList<Patch.I>.Empty, a.Element, b.Element, path: ImList<int>.Empty, pos: 0);
+        public static ImList<Patch.ICase> Diff<M1, M2>(this UI<M1> a, UI<M2> b) =>
+            Diff(ImList<Patch.ICase>.Empty, a.Element, b.Element, path: ImList<int>.Empty, pos: 0);
 
-        private static ImList<Patch.I> Diff(this ImList<Patch.I> patches,
-            UI.I a, UI.I b, ImList<int> path, int pos)
+        private static ImList<Patch.ICase> Diff(
+            this ImList<Patch.ICase> patches, UI.ICase a, UI.ICase b, ImList<int> path, int pos)
         {
             if (ReferenceEquals(a, b))
                 return patches;
 
             switch (a)
             {
-                case I<Text> textA when b is I<Text> textB:
+                case ICase<Text> textA when b is ICase<Text> textB:
                 {
-                    var (ta, tb) = (textA.V.V, textB.V.V);
-                    return ta == tb ? patches : patches.Prepend(Patch.Of(Update.Of((path, b))));
+                    var (ta, tb) = (textA.Value(), textB.Value());
+                    return ta == tb ? patches : patches.Push(Patch.Of(Update.Of((path, b))));
                 }
-                case I<Button> buttonA when b is I<Button> buttonB:
+                case ICase<Button> buttonA when b is ICase<Button> buttonB:
                 {
-                    var ((labelA, clickedA), (labelB, clickedB)) = (buttonA.V.V, buttonB.V.V);
+                    var ((labelA, clickedA), (labelB, clickedB)) = (buttonA.Value(), buttonB.Value());
                     if (labelA != labelB)
-                        patches = patches.Prepend(Patch.Of(Update.Of((path, b))));
-                    return patches.Prepend(Patch.Of(Event.Of(clickedA.Updater(clickedB))));
+                        patches = patches.Push(Patch.Of(Update.Of((path, b))));
+                    return patches.Push(Patch.Of(Event.Of(clickedA.Updater(clickedB))));
                 }
-                case I<Input> inputA when b is I<Input> inputB:
+                case ICase<Input> inputA when b is ICase<Input> inputB:
                 {
-                    var ((textA, changedA), (textB, changedB)) = (inputA.V.V, inputB.V.V);
+                    var ((textA, changedA), (textB, changedB)) = (inputA.Value(), inputB.Value());
                     if (textA != textB)
-                        patches = patches.Prepend(Patch.Of(Update.Of((path, b))));
-                    return patches.Prepend(Patch.Of(Event.Of(changedA.Updater(changedB))));
+                        patches = patches.Push(Patch.Of(Update.Of((path, b))));
+                    return patches.Push(Patch.Of(Event.Of(changedA.Updater(changedB))));
                 }
-                case I<Check> checkA when b is I<Check> checkB:
+                case ICase<Check> checkA when b is ICase<Check> checkB:
                 {
-                    var ((labelA, isCheckedA, changedA), (labelB, isCheckedB, changedB)) = (checkA.V.V, checkB.V.V);
+                    var ((labelA, isCheckedA, changedA), (labelB, isCheckedB, changedB)) =
+                        (checkA.Value(), checkB.Value());
                     return Patch.Of(Event.Of(changedA.Updater(changedB)))
-                        .Cons(isCheckedA == isCheckedB && labelA == labelB 
-                            ? patches : Patch.Of(Update.Of((path, b))).Cons(patches));
+                        .Cons(isCheckedA == isCheckedB && labelA == labelB
+                            ? patches
+                            : Patch.Of(Update.Of((path, b))).Cons(patches));
                 }
-                case I<Panel> panelA when b is I<Panel> panelB:
+                case ICase<Panel> panelA when b is ICase<Panel> panelB:
                 {
-                    var ((layoutA, elemsA), (layoutB, elemsB)) = (panelA.V.V, panelB.V.V);
+                    var ((layoutA, elemsA), (layoutB, elemsB)) = (panelA.Value(), panelB.Value());
                     return layoutA == layoutB
                         ? patches.Diff(elemsA, elemsB, path, pos)
-                        : patches.Prepend(Patch.Of(Replace.Of((path, b))));
+                        : patches.Push(Patch.Of(Replace.Of((path, b))));
                 }
                 default:
-                    return patches.Prepend(Patch.Of(Replace.Of((path, b))));
+                {
+                    return patches.Push(Patch.Of(Replace.Of((path, b))));
+                }
             }
         }
 
-        private static ImList<Patch.I> Diff(this ImList<Patch.I> patches, 
-            ImList<UI.I> a, ImList<UI.I> b, ImList<int> path, int pos)
+        private static ImList<Patch.ICase> Diff(this ImList<Patch.ICase> patches,
+            ImZipper<UI.ICase> elemsA, ImZipper<UI.ICase> elemsB, ImList<int> path, int pos)
         {
-            if (a.IsEmpty && b.IsEmpty)
+            if (elemsA.IsEmpty && elemsB.IsEmpty)
                 return patches;
 
-            if (a.IsEmpty)
-                return b.Fold(patches, (ui, i, tail) => Patch.Of(Insert.Of(((pos + i).Cons(path), ui))).Cons(tail));
+            if (elemsA.IsEmpty)
+                return elemsB.Fold(patches, (e, i, p) => Patch.Of(Insert.Of(((pos + i).Cons(path), e))).Cons(p));
 
-            if (b.IsEmpty)
-                return a.Fold(patches, (_, i, tail) => Patch.Of(Remove.Of((pos + i).Cons(path))).Cons(tail));
+            if (elemsB.IsEmpty)
+                return elemsA.Fold(patches, (e, i, p) => Patch.Of(Remove.Of(((pos + i).Cons(path)))).Cons(p));
 
-            return  patches
-                .Diff(a.Head, b.Head, pos.Cons(path), 0)
-                .Diff(a.Tail, b.Tail, path, pos + 1);
+            patches = patches.Diff(elemsA.Focus, elemsB.Focus, pos.Cons(path), 0);
+            return patches.Diff(elemsA.PopLeft(), elemsB.PopLeft(), path, pos + 1);
         }
 
         /// <summary>Runs Model-View-Update loop, e.g. Init->View->Update->View->Update->View... </summary>
@@ -304,7 +312,7 @@ namespace Tea
             // Render and insert initial UI from the model
             var initialUI = application.View();
             initialUI.Send = m => UpdateViewLoop(application, initialUI, m);
-            nativeUI.ApplyPatches(Patch.Of(Insert.Of((ImList<int>.Empty, initialUI.Element))).Cons<Patch.I>());
+            nativeUI.ApplyPatches(Patch.Of(Insert.Of((ImList<int>.Empty, initialUI.Element))).Cons());
 
             void UpdateViewLoop(IComponent<T> app, UI<IMessage<T>> ui, IMessage<T> msg)
             {
@@ -312,7 +320,7 @@ namespace Tea
                 var newUI = newModel.View();
                 newUI.Send = m => UpdateViewLoop(newModel, newUI, m);
                 var patches = ui.Diff(newUI);
-                patches.Apply(x => (x as I<Event>)?.V.V());
+                patches.ForEach(x => (x as ICase<Event>)?.Value());
                 nativeUI.ApplyPatches(patches);
             }
         }

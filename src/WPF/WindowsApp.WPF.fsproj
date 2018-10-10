@@ -71,11 +71,6 @@
     <Reference Include="System.Numerics" />
     <Reference Include="System.Windows" />
     <Reference Include="WindowsBase" />
-    <ProjectReference Include="..\UI\UI.fsproj">
-      <Name>UI</Name>
-      <Project>{1b6d10f6-f8da-4fad-af9c-ea34e62f9f8d}</Project>
-      <Private>True</Private>
-    </ProjectReference>
   </ItemGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

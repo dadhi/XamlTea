@@ -17,9 +17,9 @@ namespace Team.Sample.ToDo.Wpf
 
             //UIApplication.Run(ui, new ChangedEventSample());
 
-            //UIApplication.Run(ui, ToDoList.Init());
+            UIApplication.Run(ui, ToDoList.Init());
             //UIApplication.Run(ui, ToDoApp.Init());
-            UIApplication.Run(ui, ToDoAppWithHistory.Init());
+            //UIApplication.Run(ui, ToDoAppWithHistory.Init());
 
             var app = new Application();
             app.Run(window);

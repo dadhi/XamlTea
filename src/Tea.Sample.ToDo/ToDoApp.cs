@@ -3,20 +3,15 @@ namespace Tea.Sample.ToDo
     using System.Text;
     using ImTools;
     using static UIElements;
-    using static Component;
     using M = IMessage<ToDoApp>;
 
     public class ToDoApp : IComponent<ToDoApp>
     {
-        public readonly ImList<ToDoList> Cards;
-
-        public ToDoApp(ImList<ToDoList> cards)
-        {
-            Cards = cards;
-        }
+        public readonly ImZipper<ToDoList> Cards;
+        public ToDoApp(ImZipper<ToDoList> cards) => Cards = cards;
 
         public static ToDoApp Init() => 
-            new ToDoApp(ToDoList.Init().Cons(ToDoList.Init()));
+            new ToDoApp(ImZipper<ToDoList>.Empty.Append(ToDoList.Init()).Append(ToDoList.Init()));
 
         public override string ToString()
         {
@@ -30,11 +25,10 @@ namespace Tea.Sample.ToDo
         public ToDoApp Update(M message)
         {
             if (message is ChildChanged<ToDoList, ToDoApp> card)
-                return new ToDoApp(Cards.UpdateAt(card.Index, it => it.Update(card.Message)));
+                return new ToDoApp(Cards.UpdateAt(card.Index, x => x.Update(card.Message)));
             return this;
         }
 
-        public UI<M> View() => 
-            row(Cards.Map(Component.In<ToDoList, ToDoApp>));
+        public UI<M> View() => row(Cards.Map(Component.View<ToDoList, ToDoApp>));
     }
 }
