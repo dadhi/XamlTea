@@ -1,4 +1,4 @@
-﻿using ImTools;
+using ImTools;
 using NUnit.Framework;
 
 namespace Tea.UnitTests
@@ -71,17 +71,5 @@ namespace Tea.UnitTests
             var z3 = z.RemoveAt(0);
             Assert.AreSame(z, z3);
         }
-
-        [Test]
-        public void Can_map() =>
-            CollectionAssert.AreEqual(
-                new[] {2, 4, 6, 8},
-                1.Cons(2.Cons(3.Cons(4.Cons()))).Map(i => i * 2).ToArray());
-
-        [Test]
-        public void Can_map_with_index() =>
-            CollectionAssert.AreEqual(
-                new[] { 1, 3, 5, 7 },
-                1.Cons(2.Cons(3.Cons(4.Cons()))).Map((x, i)  => x + i).ToArray());
     }
 }

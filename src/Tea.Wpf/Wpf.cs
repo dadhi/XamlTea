@@ -16,14 +16,14 @@ namespace Tea.Wpf
         private WpfUI(ContentControl rootControl) => _rootControl = rootControl;
 
         /// <summary>Applies the updates.</summary>
-        public void ApplyPatches(ImList<Patch.ICase> changes) =>
+        public void ApplyPatches(ImList<Patch.union> changes) =>
             changes.ForEach(x => _rootControl.Dispatcher.Invoke(() => Apply(x, _rootControl)));
 
-        private static void Apply(Patch.ICase change, ContentControl root)
+        private static void Apply(Patch.union change, ContentControl root)
         {
             switch (change)
             {
-                case ICase<Insert> insert:
+                case Is<Insert> insert:
                     {
                         var ((pos, tail, isEmpty), ui) = insert.Value();
                         if (isEmpty)
@@ -32,14 +32,14 @@ namespace Tea.Wpf
                             Locate(tail, root).Children.Insert(pos, CreateElement(ui));
                         break;
                     }
-                case ICase<Update> update:
+                case Is<Update> update:
                     {
                         var ((pos, tail, isEmpty), ui) = update.Value();
                         var elem = isEmpty ? (UIElement)root.Content : Locate(tail, root).Children[pos];
                         Update(ui, elem);
                         break;
                     }
-                case ICase<Replace> replace:
+                case Is<Replace> replace:
                     {
                         var ((pos, tail, isEmpty), ui) = replace.Value();
                         var elem = CreateElement(ui);
@@ -53,7 +53,7 @@ namespace Tea.Wpf
                         }
                         break;
                     }
-                case ICase<Remove> remove:
+                case Is<Remove> remove:
                     {
                         var (pos, tail, isEmpty) = remove.Value();
                         if (!isEmpty)
@@ -61,7 +61,7 @@ namespace Tea.Wpf
                         break;
                     }
                 // todo: Leaky API, how do I know that Event is handled elsewhere
-                case ICase<Event> _:
+                case Is<Event> _:
                     // do nothing for events because they are raised before applying update in main MVU loop
                     break;
             }
@@ -70,28 +70,28 @@ namespace Tea.Wpf
         private static Pnl Locate(ImList<int> path, ContentControl root) =>
             path.IsEmpty ? (Pnl)root.Content : (Pnl)Locate(path.Tail, root).Children[path.Head];
 
-        private static UIElement CreateElement(UI.ICase ui)
+        private static UIElement CreateElement(UI.union ui)
         {
             switch (ui)
             {
-                case ICase<Text> text:
+                case Is<Text> text:
                     return new Label { Content = text.Value() };
 
-                case ICase<Input> input:
+                case Is<Input> input:
                     {
                         var (content, changed) = input.Value();
                         var tb = new TextBox { Text = content };
                         tb.TextChanged += (sender, _) => changed.Send(((TextBox)sender).Text);
                         return tb;
                     }
-                case ICase<Button> button:
+                case Is<Button> button:
                     {
                         var (label, clicked) = button.Value();
                         var b = new Btn { Content = label };
-                        b.Click += (sender, _) => clicked.Send(Unit.unit);
+                        b.Click += (sender, _) => clicked.Send(Empty.Value);
                         return b;
                     }
-                case ICase<Panel> panel:
+                case Is<Panel> panel:
                     {
                         var (layout, elems) = panel.Value();
                         var orientation = layout == Layout.Vertical ? Orientation.Vertical : Orientation.Horizontal;
@@ -99,7 +99,7 @@ namespace Tea.Wpf
                         elems.Map(CreateElement).Map(e => p.Children.Add(e));
                         return p;
                     }
-                case ICase<Check> check:
+                case Is<Check> check:
                     {
                         var (label, isChecked, changed) = check.Value();
                         var c = new CheckBox { Content = label, IsChecked = isChecked };
@@ -112,23 +112,23 @@ namespace Tea.Wpf
             }
         }
 
-        private static void Update(UI.ICase ui, UIElement elem)
+        private static void Update(UI.union ui, UIElement elem)
         {
             switch (ui)
             {
-                case ICase<Text> t when elem is Label l:
+                case Is<Text> t when elem is Label l:
                     l.Content = t.Value;
                     break;
 
-                case ICase<Input> i when elem is TextBox tb:
+                case Is<Input> i when elem is TextBox tb:
                     (tb.Text, _) = i.Value();
                     break;
 
-                case ICase<Button> b when elem is Btn bt:
+                case Is<Button> b when elem is Btn bt:
                     (bt.Content, _) = b.Value();
                     break;
 
-                case ICase<Check> c when elem is CheckBox cb:
+                case Is<Check> c when elem is CheckBox cb:
                     (cb.Content, cb.IsChecked, _) = c.Value();
                     break;
             }

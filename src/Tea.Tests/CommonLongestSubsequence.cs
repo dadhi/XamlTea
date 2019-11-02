@@ -11,7 +11,7 @@ namespace Tea
     public enum DiffActionType
     {
         /// Changed item
-        Update,
+        None,
         /// Added
         Add,
         /// Removed
@@ -48,45 +48,99 @@ namespace Tea
         /// Calculates list of actions to make a target list from source list
         public static List<DiffAction<T>> Diff<T>(this IList<T> source, IList<T> target)
         {
-            var m = source.Count;
-            var n = target.Count;
+            var s = source.Count;
+            var t = target.Count;
 
-            var c = new int[m + 1, n + 1];
-            for (var i = 1; i <= m; i++)
+            var cls = new int[s + 1, t + 1];
+            for (var i = 1; i <= s; i++)
             {
-                for (var j = 1; j <= n; j++)
+                for (var j = 1; j <= t; j++)
                 {
                     if (Equals(source[i - 1], target[j - 1]))
-                    {
-                        c[i, j] = c[i - 1, j - 1] + 1;
-                    }
+                        cls[i, j] = cls[i - 1, j - 1] + 1;
                     else
-                    {
-                        c[i, j] = Math.Max(c[i, j - 1], c[i - 1, j]);
-                    }
+                        cls[i, j] = Math.Max(cls[i, j - 1], cls[i - 1, j]);
                 }
             }
 
-            return Diff(new List<DiffAction<T>>(), c, source, target, m, n);
+            return Diff(new List<DiffAction<T>>(), cls, source, target, s, t);
+        }
+
+        /// Calculates list of actions to make a target list from source list
+        public static List<DiffAction<T>> Diff2<T>(this IList<T> source, IList<T> target) 
+        {
+            //function LCSLength(X[1..m], Y[1..n])
+            //C = array(0..m, 0..n)
+            //for i := 0..m
+            //C[i, 0] = 0
+            //for j := 0..n
+            //C[0, j] = 0
+            //for i := 1..m
+            //for j := 1..n
+            //if X[i] = Y[j]
+            //C[i, j] := C[i - 1, j - 1] + 1
+            //else
+            //C[i, j] := max(C[i, j - 1], C[i - 1, j])
+            //return C[m, n]
+
+
+            //function LCS(X[1..m], Y[1..n])
+            //start:= 1
+            //m_end:= m
+            //n_end:= n
+            //trim off the matching items at the beginning
+            //while start ≤ m_end and start ≤ n_end and X[start] = Y[start]
+            //start:= start + 1
+            //trim off the matching items at the end
+            //while start ≤ m_end and start ≤ n_end and X[m_end] = Y[n_end]
+            //m_end:= m_end - 1
+            //n_end:= n_end - 1
+            //C = array(start - 1..m_end, start - 1..n_end)
+
+            //only loop over the items that have changed
+            //for i := start..m_end
+            //for j := start..n_end
+
+            //the algorithm continues as before...
+
+            // Shrink down the equal elements from the both sides of sequences
+            var n = 0;
+            var s = source.Count;
+            var t = target.Count;
+            for (; n < s && n < t && Equals(source[n], target[n]); ++n) { }
+            for (; n < s && n < t && Equals(source[s], target[t]); --s, --t) { }
+            if (n == s && n == t)
+                return new List<DiffAction<T>>(0);
+
+            var cls = new int[s - n + 1, t - n + 1];
+
+            for (var i = n; i <= s; i++)
+            for (var j = n; j <= t; j++)
+                if (Equals(source[i - 1], target[j - 1]))
+                    cls[i - n, j - n] = cls[i - n - 1, j - n - 1] + 1;
+                else
+                    cls[i - n, j - n] = Math.Max(cls[i - n, j - n - 1], cls[i - n - 1, j - n]);
+
+            return Diff(new List<DiffAction<T>>(), cls, source, target, s, t, n);
         }
 
         private static List<DiffAction<T>> Diff<T>(this List<DiffAction<T>> actions,
-            int[,] c, IList<T> s, IList<T> t, int m, int n)
+            int[,] cls, IList<T> source, IList<T> target, int s, int t, int start = 0)
         {
-            if (m > 0 && n > 0 && Equals(s[m - 1], t[n - 1]))
+            if (s > start && t > start && Equals(source[s - 1], target[t - 1]))
             {
-                actions = actions.Diff(c, s, t, m - 1, n - 1);
-                actions.Add(new DiffAction<T>(DiffActionType.Update, s[m - 1], t[n - 1]));
+                actions = actions.Diff(cls, source, target, s - 1, t - 1, start);
+                actions.Add(new DiffAction<T>(DiffActionType.None, source[s - 1], target[t - 1]));
             }
-            else if (n > 0 && (m == 0 || c[m, n - 1] >= c[m - 1, n]))
+            else if (t > start && (s == start || cls[s, t - 1] >= cls[s - 1, t]))
             {
-                actions = actions.Diff(c, s, t, m, n - 1);
-                actions.Add(new DiffAction<T>(DiffActionType.Add, default, t[n - 1]));
+                actions = actions.Diff(cls, source, target, s, t - 1, start);
+                actions.Add(new DiffAction<T>(DiffActionType.Add, default, target[t - 1]));
             }
-            else if (m > 0 && (n == 0 || c[m, n - 1] < c[m - 1, n]))
+            else if (s > start && (t == start || cls[s, t - 1] < cls[s - 1, t]))
             {
-                actions = actions.Diff(c, s, t, m - 1, n);
-                actions.Add(new DiffAction<T>(DiffActionType.Remove, s[m - 1], default));
+                actions = actions.Diff(cls, source, target, s - 1, t, start);
+                actions.Add(new DiffAction<T>(DiffActionType.Remove, source[s - 1], default));
             }
 
             return actions;
@@ -102,7 +156,7 @@ namespace Tea
             for (var i = 0; i < actions.Count; i++)
             {
                 var action = actions[i];
-                if (action.ActionType == DiffActionType.Update)
+                if (action.ActionType == DiffActionType.None)
                     sb.Append(action.Source);
                 else if (action.ActionType == DiffActionType.Add)
                     sb.Append("+(").Append(action.Target).Append(")");
